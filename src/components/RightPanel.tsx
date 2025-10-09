@@ -1,15 +1,15 @@
-import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayersPanel } from "./panels/LayersPanel";
 import { PropertiesPanel } from "./panels/PropertiesPanel";
 import { ColorSphere } from "./panels/ColorSphere";
-import { Layers, Settings2, Palette } from "lucide-react";
+import { AIToolsPanel } from "./ai/AIToolsPanel";
+import { Layers, Settings2, Palette, Sparkles } from "lucide-react";
 
 export const RightPanel = () => {
   return (
     <aside className="w-80 border-l border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex flex-col">
       <Tabs defaultValue="layers" className="flex-1 flex flex-col">
-        <TabsList className="w-full grid grid-cols-3 bg-[hsl(var(--cde-bg-tertiary))] p-1 gap-1">
+        <TabsList className="w-full grid grid-cols-4 bg-[hsl(var(--cde-bg-tertiary))] p-1 gap-1">
           <TabsTrigger 
             value="layers" 
             className="data-[state=active]:bg-[hsl(var(--cde-accent-purple))] data-[state=active]:text-white gap-2"
@@ -31,6 +31,13 @@ export const RightPanel = () => {
             <Palette className="w-4 h-4" />
             Color
           </TabsTrigger>
+          <TabsTrigger 
+            value="ai"
+            className="data-[state=active]:bg-[hsl(var(--cde-accent-purple))] data-[state=active]:text-white gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            AI
+          </TabsTrigger>
         </TabsList>
         
         <div className="flex-1 overflow-hidden">
@@ -44,6 +51,10 @@ export const RightPanel = () => {
           
           <TabsContent value="color" className="h-full m-0">
             <ColorSphere />
+          </TabsContent>
+          
+          <TabsContent value="ai" className="h-full m-0">
+            <AIToolsPanel />
           </TabsContent>
         </div>
       </Tabs>

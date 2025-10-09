@@ -16,6 +16,8 @@ import {
   Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AIGenerateDialog } from "./ai/AIGenerateDialog";
+import { AIEditDialog } from "./ai/AIEditDialog";
 
 const tools = [
   { id: 'select', icon: MousePointer2, label: 'Selection' },
@@ -36,30 +38,43 @@ const tools = [
 
 export const LeftToolbar = () => {
   const [activeTool, setActiveTool] = useState('select');
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+
+  const handleToolClick = (toolId: string) => {
+    setActiveTool(toolId);
+    if (toolId === 'ai') {
+      setShowGenerateDialog(true);
+    }
+  };
   
   return (
+    <>
+      <AIGenerateDialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog} />
+      <AIEditDialog open={showEditDialog} onOpenChange={setShowEditDialog} />
     <aside className="w-16 border-r border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex flex-col items-center py-4 gap-1">
-      {tools.map((tool) => {
-        const Icon = tool.icon;
-        return (
-          <button
-            key={tool.id}
-            onClick={() => setActiveTool(tool.id)}
-            className={cn(
-              "cde-tool-button group relative",
-              activeTool === tool.id && "active"
-            )}
-            title={tool.label}
-          >
-            <Icon className="w-5 h-5 text-[hsl(var(--cde-text-primary))]" />
-            
-            {/* Tooltip */}
-            <div className="absolute left-full ml-2 px-2 py-1 bg-[hsl(var(--cde-bg-tertiary))] border border-[hsl(var(--cde-border-subtle))] rounded text-xs whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-              {tool.label}
-            </div>
-          </button>
-        );
+        {tools.map((tool) => {
+          const Icon = tool.icon;
+          return (
+            <button
+              key={tool.id}
+              onClick={() => handleToolClick(tool.id)}
+              className={cn(
+                "cde-tool-button group relative",
+                activeTool === tool.id && "active"
+              )}
+              title={tool.label}
+            >
+              <Icon className="w-5 h-5 text-[hsl(var(--cde-text-primary))]" />
+              
+              {/* Tooltip */}
+              <div className="absolute left-full ml-2 px-2 py-1 bg-[hsl(var(--cde-bg-tertiary))] border border-[hsl(var(--cde-border-subtle))] rounded text-xs whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                {tool.label}
+              </div>
+            </button>
+          );
       })}
     </aside>
+  </>
   );
 };
