@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   Settings, 
@@ -14,24 +15,46 @@ import {
   Clock,
   Ear,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  Image
 } from "lucide-react";
+import { AssetUploadButton } from "./AssetBrowser/AssetUploadButton";
+import { AssetBrowserModal } from "./AssetBrowser/AssetBrowserModal";
 
 export const TopBar = () => {
+  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+
   return (
-    <header className="h-14 border-b border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex items-center justify-between px-4 z-50">
-      {/* Left Section */}
-      <div className="flex items-center gap-4">
-        <div className="font-bold text-lg bg-clip-text text-transparent cde-gradient-primary">
-          CDE
-        </div>
-        
-        <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
-        
-        <Button variant="ghost" size="sm" className="gap-2 text-[hsl(var(--cde-text-secondary))] hover:text-[hsl(var(--cde-text-primary))]">
-          <Settings className="w-4 h-4" />
-          Settings
-        </Button>
+    <>
+      <AssetBrowserModal open={showAssetBrowser} onOpenChange={setShowAssetBrowser} />
+      
+      <header className="h-14 border-b border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex items-center justify-between px-4 z-50">
+        {/* Left Section */}
+        <div className="flex items-center gap-4">
+          <div className="font-bold text-lg bg-clip-text text-transparent cde-gradient-primary">
+            CDE
+          </div>
+          
+          <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
+          
+          <AssetUploadButton />
+          
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="gap-2 text-[hsl(var(--cde-text-secondary))] hover:text-[hsl(var(--cde-text-primary))]"
+            onClick={() => setShowAssetBrowser(true)}
+          >
+            <Image className="w-4 h-4" />
+            Assets
+          </Button>
+          
+          <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
+          
+          <Button variant="ghost" size="sm" className="gap-2 text-[hsl(var(--cde-text-secondary))] hover:text-[hsl(var(--cde-text-primary))]">
+            <Settings className="w-4 h-4" />
+            Settings
+          </Button>
         
         <Button variant="ghost" size="sm" className="gap-2 text-[hsl(var(--cde-text-secondary))] hover:text-[hsl(var(--cde-text-primary))]">
           <User className="w-4 h-4" />
@@ -100,5 +123,6 @@ export const TopBar = () => {
         </Button>
       </div>
     </header>
+    </>
   );
 };
