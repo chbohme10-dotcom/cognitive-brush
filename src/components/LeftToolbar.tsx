@@ -54,9 +54,11 @@ export const LeftToolbar = () => {
       <AIGenerateDialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog} />
       <AIEditDialog open={showEditDialog} onOpenChange={setShowEditDialog} />
     <aside 
-      className="border-r border-[hsl(var(--cde-border-subtle))] flex flex-col items-center py-4 gap-1 relative overflow-hidden transition-all duration-300 ease-in-out"
+      className="border-r border-[hsl(var(--cde-border-subtle))] flex flex-col items-center relative overflow-hidden transition-all duration-300 ease-in-out"
       style={{
         width: isHovered ? '64px' : '10px',
+        paddingTop: isHovered ? '16px' : '0',
+        paddingBottom: isHovered ? '16px' : '0',
         background: `
           linear-gradient(to right, hsl(var(--cde-bg-secondary)) 0%, hsl(var(--cde-bg-secondary)) calc(100% - 10px), hsl(var(--cde-bg-tertiary)) calc(100% - 10px)),
           repeating-linear-gradient(
@@ -88,7 +90,11 @@ export const LeftToolbar = () => {
             </div>
           ))}
         </div>
-        {tools.map((tool) => {
+        
+        {/* Tools - only visible when hovered */}
+        {isHovered && (
+          <div className="flex flex-col gap-1 animate-fade-in">
+            {tools.map((tool) => {
           const Icon = tool.icon;
           return (
             <button
@@ -108,8 +114,10 @@ export const LeftToolbar = () => {
               </div>
             </button>
           );
-      })}
+        })}
+          </div>
+        )}
     </aside>
-  </>
+    </>
   );
 };

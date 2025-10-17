@@ -5,7 +5,7 @@ import { ColorSphere } from "./panels/ColorSphere";
 import { AIToolsPanel } from "./ai/AIToolsPanel";
 import { MicroscopePanel } from "./panels/MicroscopePanel";
 import { LayerStripPanel } from "./panels/LayerStripPanel";
-import { Layers, Settings2, Palette, Sparkles, Microscope, X } from "lucide-react";
+import { Layers, Settings2, Palette, Sparkles, Microscope, X, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -13,6 +13,7 @@ export const RightPanel = () => {
   const [activePanel, setActivePanel] = useState<string>("layers");
   const [isOpen, setIsOpen] = useState(true);
   const [isActivatorHovered, setIsActivatorHovered] = useState(false);
+  const [showMiniLayers, setShowMiniLayers] = useState(true);
 
   // Mock layer data - in production this would come from a global state
   const [layers, setLayers] = useState([
@@ -62,7 +63,8 @@ export const RightPanel = () => {
       }}
     >
       {/* Mini Layers Strip - Left Edge */}
-      <LayerStripPanel
+      {showMiniLayers && (
+        <LayerStripPanel
         layers={layers}
         activeLayerId={layers[0]?.id}
         onLayerClick={handleLayerClick}
@@ -70,6 +72,7 @@ export const RightPanel = () => {
         onToggleLock={handleToggleLock}
         onReorder={handleReorder}
       />
+      )}
 
       {/* Main Panel Drawer */}
       {isOpen && (
@@ -84,10 +87,47 @@ export const RightPanel = () => {
 
       {/* Activator Bar - Right Edge */}
       <div 
-        className="w-12 bg-[hsl(var(--cde-bg-tertiary))] border-l border-[hsl(var(--cde-border-subtle))] flex flex-col items-center py-2 gap-1"
+        className="flex flex-col items-center relative overflow-hidden transition-all duration-300 ease-in-out border-l border-[hsl(var(--cde-border-subtle))]"
+        style={{
+          width: isActivatorHovered || isOpen ? '48px' : '10px',
+          paddingTop: (isActivatorHovered || isOpen) ? '8px' : '0',
+          paddingBottom: (isActivatorHovered || isOpen) ? '8px' : '0',
+          background: `
+            linear-gradient(to right, hsl(var(--cde-bg-tertiary)) 0%, hsl(var(--cde-bg-tertiary)) 10px, hsl(var(--cde-bg-tertiary)) 100%),
+            repeating-linear-gradient(
+              0deg,
+              hsl(var(--cde-border-subtle)) 0px,
+              hsl(var(--cde-border-subtle)) 1px,
+              transparent 1px,
+              transparent 20px
+            )
+          `,
+          backgroundPosition: '0 0, 0 0',
+          backgroundSize: '100% 100%, 10px 100px'
+        }}
         onMouseEnter={() => setIsActivatorHovered(true)}
         onMouseLeave={() => setIsActivatorHovered(false)}
       >
+        {/* Ruler markings */}
+        <div className="absolute left-0 top-0 bottom-0 w-[10px] flex flex-col pointer-events-none">
+          {Array.from({ length: 50 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 h-5 w-full border-b border-[hsl(var(--cde-border-subtle))] relative">
+              {i % 5 === 0 && (
+                <span 
+                  className="absolute left-0 top-0.5 text-[8px] text-[hsl(var(--cde-text-muted))] font-mono"
+                  style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+                >
+                  {i * 20}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Buttons - only visible when hovered or open */}
+        {(isActivatorHovered || isOpen) && (
+          <div className="flex flex-col gap-1 animate-fade-in">
+        
         {panels.map((panel) => (
           <TooltipProvider key={panel.id}>
             <Tooltip>
@@ -122,6 +162,29 @@ export const RightPanel = () => {
         {/* Spacer */}
         <div className="flex-1" />
 
+        {/* Mini Layers Toggle Button */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`
+                  w-10 h-10 rounded-lg transition-all
+                  ${showMiniLayers
+                    ? "bg-[hsl(var(--cde-accent-purple))] text-white" 
+                    : "text-[hsl(var(--cde-text-secondary))] hover:bg-[hsl(var(--cde-bg-secondary))] hover:text-[hsl(var(--cde-text-primary))]"
+                  }
+                `}
+                onClick={() => setShowMiniLayers(!showMiniLayers)}
+              >
+                <LayoutList className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Toggle Mini Layers</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
         {/* Close Button */}
         {isOpen && (
           <TooltipProvider>
@@ -139,6 +202,8 @@ export const RightPanel = () => {
               <TooltipContent side="left">Close Panel</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+        )}
+          </div>
         )}
       </div>
     </aside>

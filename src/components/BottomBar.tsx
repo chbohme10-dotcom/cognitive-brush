@@ -1,77 +1,81 @@
 import { useState } from "react";
-import { Info, MapPin, ZoomIn, Clock, Shield, Settings2 } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
+import { Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MiniSettingsStrip } from "./MiniSettingsStrip";
 
 export const BottomBar = () => {
   const [isHovered, setIsHovered] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
-    <footer 
-      className="border-t border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex flex-col transition-all duration-300 ease-in-out overflow-hidden"
-      style={{ height: isHovered ? '64px' : '10px' }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Top row: Inspector/Tool Parameters */}
-      <div className="h-10 flex items-center gap-6 px-4 border-b border-[hsl(var(--cde-border-subtle))]">
-        <div className="flex items-center gap-2 text-[hsl(var(--cde-text-primary))]">
-          <Settings2 className="w-3.5 h-3.5 text-[hsl(var(--cde-accent-purple))]" />
-          <span className="text-xs font-medium">Inspector</span>
-        </div>
-        
-        <div className="flex items-center gap-4 flex-1">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-[hsl(var(--cde-text-muted))]">Size:</label>
-            <Slider defaultValue={[50]} max={100} className="w-24" />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-[hsl(var(--cde-text-muted))]">Opacity:</label>
-            <Slider defaultValue={[100]} max={100} className="w-24" />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-[hsl(var(--cde-text-muted))]">Hardness:</label>
-            <Slider defaultValue={[75]} max={100} className="w-24" />
-          </div>
-        </div>
-      </div>
+    <>
+      {showSettings && <MiniSettingsStrip onClose={() => setShowSettings(false)} />}
       
-      {/* Bottom row: Status & Hints */}
-      <div className="h-6 flex items-center justify-between px-4 text-xs text-[hsl(var(--cde-text-secondary))]">
-      {/* Left Section - Hints */}
-      <div className="flex items-center gap-2">
-        <Info className="w-3.5 h-3.5" />
-        <span>Ctrl+Click-Drag to adjust pins | Shift for precision</span>
-      </div>
-      
-      {/* Center Section - Status */}
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-1.5">
-          <MapPin className="w-3.5 h-3.5" />
-          <span className="font-mono">X: 854 Y: 312</span>
+      <footer 
+        className="border-t border-[hsl(var(--cde-border-subtle))] relative overflow-hidden transition-all duration-300 ease-in-out"
+        style={{
+          height: isHovered ? '44px' : '10px',
+          paddingLeft: isHovered ? '16px' : '0',
+          paddingRight: isHovered ? '16px' : '0',
+          background: `
+            linear-gradient(to bottom, hsl(var(--cde-bg-tertiary)) 0%, hsl(var(--cde-bg-tertiary)) 10px, hsl(var(--cde-bg-secondary)) 10px),
+            repeating-linear-gradient(
+              90deg,
+              hsl(var(--cde-border-subtle)) 0px,
+              hsl(var(--cde-border-subtle)) 1px,
+              transparent 1px,
+              transparent 20px
+            )
+          `,
+          backgroundPosition: '0 0, 0 0',
+          backgroundSize: '100% 100%, 100px 10px'
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Ruler markings */}
+        <div className="absolute top-0 left-0 right-0 h-[10px] flex pointer-events-none">
+          {Array.from({ length: 100 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 w-5 h-full border-r border-[hsl(var(--cde-border-subtle))] relative">
+              {i % 5 === 0 && (
+                <span className="absolute top-0 left-0.5 text-[8px] text-[hsl(var(--cde-text-muted))] font-mono">
+                  {i * 20}
+                </span>
+              )}
+            </div>
+          ))}
         </div>
-        
-        <div className="flex items-center gap-1.5">
-          <ZoomIn className="w-3.5 h-3.5" />
-          <span className="font-mono">125%</span>
-        </div>
-        
-        <div className="flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5" />
-          <span>History: Layer Transform Applied</span>
-        </div>
-      </div>
-      
-      {/* Right Section - AI Status */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1.5">
-          <Shield className="w-3.5 h-3.5 text-[hsl(var(--cde-accent-success))]" />
-          <span>Ethics: <span className="text-[hsl(var(--cde-accent-success))]">Low Bias</span></span>
-        </div>
-        
-        <div className="w-2 h-2 rounded-full bg-[hsl(var(--cde-accent-success))] animate-pulse" />
-        <span>AI Ready</span>
-      </div>
-      </div>
-    </footer>
+
+        {/* Content - only visible when hovered */}
+        {isHovered && (
+          <div className="flex items-center justify-between h-full animate-fade-in">
+            {/* Left Section with Settings Toggle */}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowSettings(!showSettings)}
+                className={showSettings ? "bg-[hsl(var(--cde-accent-purple))] text-white" : ""}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Tool Settings
+              </Button>
+            </div>
+            
+            {/* Center Status */}
+            <div className="flex items-center gap-4 text-sm text-[hsl(var(--cde-text-secondary))]">
+              <span>Canvas: 1920 × 1080</span>
+              <div className="h-4 w-px bg-[hsl(var(--cde-border-subtle))]" />
+              <span>Layer: Background</span>
+              <div className="h-4 w-px bg-[hsl(var(--cde-border-subtle))]" />
+              <span>Memory: 2.4 GB</span>
+            </div>
+            
+            {/* Right placeholder */}
+            <div className="w-24" />
+          </div>
+        )}
+      </footer>
+    </>
   );
 };

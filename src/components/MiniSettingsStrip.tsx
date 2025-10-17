@@ -1,20 +1,19 @@
-import { Slider } from "@/components/ui/slider";
+import { useState } from "react";
+import { X, Settings2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ChevronLeft, ChevronRight, Sparkles, Settings2 } from "lucide-react";
-import { useState } from "react";
 
 interface MiniSettingsStripProps {
-  activeTool: string;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
+  onClose: () => void;
 }
 
-export const MiniSettingsStrip = ({ activeTool, isExpanded, onToggleExpand }: MiniSettingsStripProps) => {
+export const MiniSettingsStrip = ({ onClose }: MiniSettingsStripProps) => {
+  const [activeTool] = useState('brush'); // Default to brush for now
   const [brushSize, setBrushSize] = useState([50]);
   const [brushHardness, setBrushHardness] = useState([75]);
   const [brushOpacity, setBrushOpacity] = useState([100]);
@@ -245,35 +244,20 @@ export const MiniSettingsStrip = ({ activeTool, isExpanded, onToggleExpand }: Mi
 
   return (
     <div 
-      className={`
-        ${isExpanded ? 'w-64' : 'w-12'}
-        border-r border-[hsl(var(--cde-border-subtle))] 
-        bg-[hsl(var(--cde-bg-secondary))] 
-        transition-all duration-300 
-        flex flex-col
-        overflow-hidden
-      `}
+      className="fixed bottom-12 left-0 right-0 bg-[hsl(var(--cde-bg-secondary))] border-t border-[hsl(var(--cde-border-subtle))] z-50 animate-fade-in"
+      style={{ height: '240px' }}
     >
-      {/* Header with Collapse/Expand Button */}
-      <div className="p-2 border-b border-[hsl(var(--cde-border-subtle))] flex items-center justify-between">
-        {isExpanded && (
-          <span className="text-xs font-semibold text-[hsl(var(--cde-text-secondary))] uppercase tracking-wide">
-            Tool Settings
-          </span>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="w-8 h-8 ml-auto"
-          onClick={onToggleExpand}
-        >
-          {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </Button>
-      </div>
+      <div className="h-full overflow-y-auto p-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-[hsl(var(--cde-text-primary))]">Tool Settings</h3>
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
 
-      {/* Settings Content */}
-      {isExpanded && (
-        <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+        {/* Settings Content */}
+        <div className="space-y-4">
           {activeTool === 'brush' && renderBrushSettings()}
           {activeTool === 'select' && renderSelectSettings()}
           {activeTool === 'lasso' && renderLassoSettings()}
@@ -287,14 +271,7 @@ export const MiniSettingsStrip = ({ activeTool, isExpanded, onToggleExpand }: Mi
             </div>
           )}
         </div>
-      )}
-
-      {/* Collapsed Icons */}
-      {!isExpanded && (
-        <div className="flex-1 flex items-center justify-center">
-          <Settings2 className="w-5 h-5 text-[hsl(var(--cde-text-muted))]" />
-        </div>
-      )}
+      </div>
     </div>
   );
 };

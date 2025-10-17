@@ -30,9 +30,11 @@ export const TopBar = () => {
       <AssetBrowserModal open={showAssetBrowser} onOpenChange={setShowAssetBrowser} />
       
       <header 
-        className="border-b border-[hsl(var(--cde-border-subtle))] flex items-center justify-between px-4 z-50 relative overflow-hidden transition-all duration-300 ease-in-out"
+        className="border-b border-[hsl(var(--cde-border-subtle))] flex items-center justify-between relative overflow-hidden transition-all duration-300 ease-in-out"
         style={{ 
           height: isHovered ? '56px' : '10px',
+          paddingLeft: isHovered ? '16px' : '0',
+          paddingRight: isHovered ? '16px' : '0',
           background: `
             linear-gradient(to bottom, hsl(var(--cde-bg-secondary)) 0%, hsl(var(--cde-bg-secondary)) calc(100% - 10px), hsl(var(--cde-bg-tertiary)) calc(100% - 10px)),
             repeating-linear-gradient(
@@ -61,6 +63,10 @@ export const TopBar = () => {
             </div>
           ))}
         </div>
+        
+        {/* Content - only visible when hovered */}
+        {isHovered && (
+          <>
         {/* Left Section */}
         <div className="flex items-center gap-4">
           <div className="font-bold text-lg bg-clip-text text-transparent cde-gradient-primary">
@@ -154,6 +160,8 @@ export const TopBar = () => {
           <AlertCircle className="w-4 h-4" />
         </Button>
       </div>
+          </>
+        )}
     </header>
     </>
   );
