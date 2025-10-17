@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export const RightPanel = () => {
   const [activePanel, setActivePanel] = useState<string>("layers");
   const [isOpen, setIsOpen] = useState(true);
+  const [isActivatorHovered, setIsActivatorHovered] = useState(false);
 
   // Mock layer data - in production this would come from a global state
   const [layers, setLayers] = useState([
@@ -54,7 +55,12 @@ export const RightPanel = () => {
   };
 
   return (
-    <aside className="flex border-l border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))]">
+    <aside 
+      className="flex border-l border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] transition-all duration-300 ease-in-out relative"
+      style={{ 
+        marginRight: !isOpen && !isActivatorHovered ? '-48px' : '0'
+      }}
+    >
       {/* Mini Layers Strip - Left Edge */}
       <LayerStripPanel
         layers={layers}
@@ -77,7 +83,11 @@ export const RightPanel = () => {
       )}
 
       {/* Activator Bar - Right Edge */}
-      <div className="w-12 bg-[hsl(var(--cde-bg-tertiary))] border-l border-[hsl(var(--cde-border-subtle))] flex flex-col items-center py-2 gap-1">
+      <div 
+        className="w-12 bg-[hsl(var(--cde-bg-tertiary))] border-l border-[hsl(var(--cde-border-subtle))] flex flex-col items-center py-2 gap-1"
+        onMouseEnter={() => setIsActivatorHovered(true)}
+        onMouseLeave={() => setIsActivatorHovered(false)}
+      >
         {panels.map((panel) => (
           <TooltipProvider key={panel.id}>
             <Tooltip>

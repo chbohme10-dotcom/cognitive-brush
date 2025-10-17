@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export const Canvas = () => {
-  const [zoom] = useState(125);
+  const [zoom, setZoom] = useState(125);
   const [coordinates, setCoordinates] = useState({ x: 0, y: 0 });
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [isZooming, setIsZooming] = useState(false);
+  const panStartRef = useRef({ x: 0, y: 0 });
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -10,12 +14,55 @@ export const Canvas = () => {
       x: Math.round(e.clientX - rect.left),
       y: Math.round(e.clientY - rect.top)
     });
+
+    if (isPanning && e.buttons === 2) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      setPanOffset(prev => ({
+        x: prev.x + dx,
+        y: prev.y + dy
+      }));
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 2) {
+      setIsPanning(true);
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+    }
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (e.button === 2) {
+      setIsPanning(false);
+      setIsZooming(false);
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (isZooming || e.buttons === 2) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -5 : 5;
+      setZoom(prev => Math.max(25, Math.min(400, prev + delta)));
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsZooming(true);
   };
 
   return (
     <main 
       className="flex-1 relative overflow-hidden bg-[hsl(var(--cde-bg-primary))]"
       onMouseMove={handleMouseMove}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onWheel={handleWheel}
+      onContextMenu={handleContextMenu}
+      style={{ cursor: isPanning ? 'grabbing' : 'default' }}
     >
       {/* Canvas Grid Background */}
       <div 
@@ -37,7 +84,8 @@ export const Canvas = () => {
           style={{
             width: `${zoom}%`,
             aspectRatio: '16/9',
-            boxShadow: '0 0 60px hsl(262 83% 58% / 0.2)'
+            boxShadow: '0 0 60px hsl(262 83% 58% / 0.2)',
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px)`
           }}
         >
           {/* Canvas Content Placeholder */}
@@ -62,27 +110,6 @@ export const Canvas = () => {
         </div>
       </div>
       
-      {/* Ruler - Top */}
-      <div className="absolute top-0 left-16 right-64 h-6 bg-[hsl(var(--cde-bg-secondary))] border-b border-[hsl(var(--cde-border-subtle))] flex items-center overflow-hidden">
-        {Array.from({ length: 50 }).map((_, i) => (
-          <div key={i} className="flex-shrink-0 w-20 h-full border-r border-[hsl(var(--cde-border-subtle))] relative">
-            <span className="absolute bottom-0 left-1 text-[10px] text-[hsl(var(--cde-text-muted))]">
-              {i * 100}
-            </span>
-          </div>
-        ))}
-      </div>
-      
-      {/* Ruler - Left */}
-      <div className="absolute left-0 top-14 bottom-10 w-6 bg-[hsl(var(--cde-bg-secondary))] border-r border-[hsl(var(--cde-border-subtle))] flex flex-col overflow-hidden">
-        {Array.from({ length: 30 }).map((_, i) => (
-          <div key={i} className="flex-shrink-0 h-20 w-full border-b border-[hsl(var(--cde-border-subtle))] relative">
-            <span className="absolute top-1 right-1 text-[10px] text-[hsl(var(--cde-text-muted))] [writing-mode:vertical-lr]">
-              {i * 100}
-            </span>
-          </div>
-        ))}
-      </div>
     </main>
   );
 };

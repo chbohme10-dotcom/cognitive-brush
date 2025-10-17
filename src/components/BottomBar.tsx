@@ -1,9 +1,17 @@
+import { useState } from "react";
 import { Info, MapPin, ZoomIn, Clock, Shield, Settings2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
 export const BottomBar = () => {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
-    <footer className="h-16 border-t border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex flex-col">
+    <footer 
+      className="border-t border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex flex-col transition-all duration-300 ease-in-out overflow-hidden"
+      style={{ height: isHovered ? '64px' : '10px' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Top row: Inspector/Tool Parameters */}
       <div className="h-10 flex items-center gap-6 px-4 border-b border-[hsl(var(--cde-border-subtle))]">
         <div className="flex items-center gap-2 text-[hsl(var(--cde-text-primary))]">

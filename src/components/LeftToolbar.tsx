@@ -40,6 +40,7 @@ export const LeftToolbar = () => {
   const [activeTool, setActiveTool] = useState('select');
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleToolClick = (toolId: string) => {
     setActiveTool(toolId);
@@ -52,7 +53,41 @@ export const LeftToolbar = () => {
     <>
       <AIGenerateDialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog} />
       <AIEditDialog open={showEditDialog} onOpenChange={setShowEditDialog} />
-    <aside className="w-16 border-r border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex flex-col items-center py-4 gap-1">
+    <aside 
+      className="border-r border-[hsl(var(--cde-border-subtle))] flex flex-col items-center py-4 gap-1 relative overflow-hidden transition-all duration-300 ease-in-out"
+      style={{
+        width: isHovered ? '64px' : '10px',
+        background: `
+          linear-gradient(to right, hsl(var(--cde-bg-secondary)) 0%, hsl(var(--cde-bg-secondary)) calc(100% - 10px), hsl(var(--cde-bg-tertiary)) calc(100% - 10px)),
+          repeating-linear-gradient(
+            0deg,
+            hsl(var(--cde-border-subtle)) 0px,
+            hsl(var(--cde-border-subtle)) 1px,
+            transparent 1px,
+            transparent 20px
+          )
+        `,
+        backgroundPosition: '0 0, 100% 0',
+        backgroundSize: '100% 100%, 10px 100px'
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+        {/* Ruler markings */}
+        <div className="absolute right-0 top-0 bottom-0 w-[10px] flex flex-col pointer-events-none">
+          {Array.from({ length: 50 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 h-5 w-full border-b border-[hsl(var(--cde-border-subtle))] relative">
+              {i % 5 === 0 && (
+                <span 
+                  className="absolute right-0 top-0.5 text-[8px] text-[hsl(var(--cde-text-muted))] font-mono"
+                  style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+                >
+                  {i * 20}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
         {tools.map((tool) => {
           const Icon = tool.icon;
           return (

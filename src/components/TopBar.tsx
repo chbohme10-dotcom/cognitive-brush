@@ -23,12 +23,44 @@ import { AssetBrowserModal } from "./AssetBrowser/AssetBrowserModal";
 
 export const TopBar = () => {
   const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <>
       <AssetBrowserModal open={showAssetBrowser} onOpenChange={setShowAssetBrowser} />
       
-      <header className="h-14 border-b border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] flex items-center justify-between px-4 z-50">
+      <header 
+        className="border-b border-[hsl(var(--cde-border-subtle))] flex items-center justify-between px-4 z-50 relative overflow-hidden transition-all duration-300 ease-in-out"
+        style={{ 
+          height: isHovered ? '56px' : '10px',
+          background: `
+            linear-gradient(to bottom, hsl(var(--cde-bg-secondary)) 0%, hsl(var(--cde-bg-secondary)) calc(100% - 10px), hsl(var(--cde-bg-tertiary)) calc(100% - 10px)),
+            repeating-linear-gradient(
+              90deg,
+              hsl(var(--cde-border-subtle)) 0px,
+              hsl(var(--cde-border-subtle)) 1px,
+              transparent 1px,
+              transparent 20px
+            )
+          `,
+          backgroundPosition: '0 0, 0 100%',
+          backgroundSize: '100% 100%, 100px 10px'
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Ruler markings */}
+        <div className="absolute bottom-0 left-0 right-0 h-[10px] flex items-end pointer-events-none">
+          {Array.from({ length: 100 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 w-5 h-full border-r border-[hsl(var(--cde-border-subtle))] relative">
+              {i % 5 === 0 && (
+                <span className="absolute bottom-0 left-0.5 text-[8px] text-[hsl(var(--cde-text-muted))] font-mono">
+                  {i * 20}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
         {/* Left Section */}
         <div className="flex items-center gap-4">
           <div className="font-bold text-lg bg-clip-text text-transparent cde-gradient-primary">
