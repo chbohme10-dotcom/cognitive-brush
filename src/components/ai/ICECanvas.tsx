@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,7 +112,6 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
 
   const analyzePrompt = async () => {
     toast.info("AI analyzing your prompt composition...");
-    // This would call an edge function with AI analysis
     setTimeout(() => {
       toast.success("Suggestion: Add more specific details about lighting and mood");
     }, 2000);
@@ -146,9 +144,9 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
   const currentLayer = promptLayers.find(l => l.id === selectedLayer);
 
   return (
-    <div className="flex flex-col h-full gap-4">
+    <div className="flex flex-col h-full gap-3 p-4">
       {/* Cognitive Load Indicator */}
-      <div className="flex items-center gap-2 p-3 bg-[hsl(var(--cde-bg-tertiary))] rounded-lg">
+      <div className="flex items-center gap-2 p-2 bg-[hsl(var(--cde-bg-tertiary))] rounded-lg">
         <Brain className="w-4 h-4 text-[hsl(var(--cde-accent-purple))]" />
         <div className="flex-1">
           <div className="flex justify-between text-xs mb-1">
@@ -169,7 +167,7 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4 flex-1 min-h-0">
+      <div className="flex flex-col gap-3 flex-1 min-h-0">
         {/* Prompt Layers Panel */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
@@ -179,7 +177,7 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
             <Button
               size="sm"
               onClick={() => fileInputRef.current?.click()}
-              className="cde-gradient-primary h-8"
+              className="cde-gradient-primary h-7 px-2"
             >
               <Plus className="w-3 h-3 mr-1" />
               Add
@@ -197,20 +195,20 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
             />
           </div>
 
-          <ScrollArea className="flex-1 border border-[hsl(var(--cde-border-subtle))] rounded-lg">
-            <div className="p-2 space-y-2">
+          <ScrollArea className="h-32 border border-[hsl(var(--cde-border-subtle))] rounded-lg">
+            <div className="p-2 flex gap-2">
               {promptLayers.map((layer) => (
                 <div
                   key={layer.id}
-                  className={`p-2 rounded cursor-pointer transition-colors ${
+                  className={`flex-shrink-0 w-24 p-1.5 rounded cursor-pointer transition-colors ${
                     selectedLayer === layer.id
                       ? "bg-[hsl(var(--cde-accent-purple))] text-white"
                       : "bg-[hsl(var(--cde-bg-tertiary))] hover:bg-[hsl(var(--cde-bg-tertiary))]/80"
                   }`}
                   onClick={() => setSelectedLayer(layer.id)}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium truncate">{layer.title}</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-medium truncate flex-1">{layer.title}</span>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -218,18 +216,18 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
                         e.stopPropagation();
                         removeLayer(layer.id);
                       }}
-                      className="h-5 w-5 p-0"
+                      className="h-4 w-4 p-0"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-2.5 h-2.5" />
                     </Button>
                   </div>
                   <img 
                     src={layer.imageUrl} 
                     alt={layer.title}
-                    className="w-full h-20 object-cover rounded"
+                    className="w-full h-16 object-cover rounded"
                   />
                   {layer.markups.length > 0 && (
-                    <Badge variant="secondary" className="mt-1 text-xs">
+                    <Badge variant="secondary" className="mt-1 text-[9px] px-1 h-4">
                       {layer.markups.length} markup{layer.markups.length > 1 ? 's' : ''}
                     </Badge>
                   )}
@@ -240,47 +238,48 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
         </div>
 
         {/* Visual Prompting Canvas */}
-        <div className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-[hsl(var(--cde-text-primary))]">
-            Visual Prompting Canvas
-          </h3>
-          
-          <div className="flex gap-1 p-2 bg-[hsl(var(--cde-bg-tertiary))] rounded-lg">
-            <Button
-              size="sm"
-              variant={activeMarkupTool === 'lasso' ? 'default' : 'ghost'}
-              onClick={() => addMarkup('lasso')}
-              className="flex-1"
-            >
-              <Lasso className="w-4 h-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant={activeMarkupTool === 'wand' ? 'default' : 'ghost'}
-              onClick={() => addMarkup('wand')}
-              className="flex-1"
-            >
-              <Wand2 className="w-4 h-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant={activeMarkupTool === 'pen' ? 'default' : 'ghost'}
-              onClick={() => addMarkup('pen')}
-              className="flex-1"
-            >
-              <Pen className="w-4 h-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant={activeMarkupTool === 'crop' ? 'default' : 'ghost'}
-              onClick={() => addMarkup('crop')}
-              className="flex-1"
-            >
-              <Crop className="w-4 h-4" />
-            </Button>
+        <div className="flex flex-col gap-2 flex-1 min-h-0">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[hsl(var(--cde-text-primary))]">
+              Visual Prompting Canvas
+            </h3>
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant={activeMarkupTool === 'lasso' ? 'default' : 'ghost'}
+                onClick={() => addMarkup('lasso')}
+                className="h-7 w-7 p-0"
+              >
+                <Lasso className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant={activeMarkupTool === 'wand' ? 'default' : 'ghost'}
+                onClick={() => addMarkup('wand')}
+                className="h-7 w-7 p-0"
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant={activeMarkupTool === 'pen' ? 'default' : 'ghost'}
+                onClick={() => addMarkup('pen')}
+                className="h-7 w-7 p-0"
+              >
+                <Pen className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant={activeMarkupTool === 'crop' ? 'default' : 'ghost'}
+                onClick={() => addMarkup('crop')}
+                className="h-7 w-7 p-0"
+              >
+                <Crop className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           </div>
 
-          <div className="flex-1 border-2 border-dashed border-[hsl(var(--cde-border-subtle))] rounded-lg flex items-center justify-center bg-[hsl(var(--cde-bg-secondary))]">
+          <div className="flex-1 border-2 border-dashed border-[hsl(var(--cde-border-subtle))] rounded-lg flex items-center justify-center bg-[hsl(var(--cde-bg-secondary))] min-h-0">
             {currentLayer ? (
               <img 
                 src={currentLayer.imageUrl}
@@ -289,28 +288,28 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
               />
             ) : (
               <div className="text-center text-[hsl(var(--cde-text-muted))]">
-                <ImagePlus className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Select a layer to start marking up</p>
+                <ImagePlus className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-xs">Select a layer to start marking up</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Prompt Details Panel */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 max-h-64">
           <h3 className="text-sm font-semibold text-[hsl(var(--cde-text-primary))]">
             Prompt Details
           </h3>
 
           {currentLayer ? (
             <ScrollArea className="flex-1">
-              <div className="space-y-4 pr-2">
+              <div className="space-y-3 pr-2">
                 <div>
                   <Label className="text-xs text-[hsl(var(--cde-text-secondary))]">Layer Title</Label>
                   <Input
                     value={currentLayer.title}
                     onChange={(e) => updateLayer(currentLayer.id, { title: e.target.value })}
-                    className="mt-1"
+                    className="mt-1 h-8 text-sm"
                   />
                 </div>
 
@@ -320,7 +319,7 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
                     value={currentLayer.prompt}
                     onChange={(e) => updateLayer(currentLayer.id, { prompt: e.target.value })}
                     placeholder="Describe what you want..."
-                    className="mt-1 min-h-[100px]"
+                    className="mt-1 min-h-[80px] text-sm"
                   />
                 </div>
 
@@ -330,7 +329,7 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
                     value={currentLayer.negativePrompt}
                     onChange={(e) => updateLayer(currentLayer.id, { negativePrompt: e.target.value })}
                     placeholder="What to avoid..."
-                    className="mt-1 min-h-[60px]"
+                    className="mt-1 min-h-[50px] text-sm"
                   />
                 </div>
 
@@ -342,13 +341,13 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
                     {currentLayer.markups.map((markup) => (
                       <div key={markup.id} className="mb-2 p-2 bg-[hsl(var(--cde-bg-tertiary))] rounded">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-[10px]">
                             {markup.type}
                           </Badge>
                         </div>
                         <Input
                           placeholder="Specific prompt for this area..."
-                          className="text-xs"
+                          className="text-xs h-7"
                         />
                       </div>
                     ))}
@@ -371,21 +370,23 @@ export const ICECanvas = ({ onGenerate, isGenerating }: ICECanvasProps) => {
           variant="outline"
           disabled={promptLayers.length === 0}
           className="flex-1"
+          size="sm"
         >
-          <Sparkles className="w-4 h-4 mr-2" />
+          <Sparkles className="w-3.5 h-3.5 mr-2" />
           Analyze Prompt
         </Button>
         <Button
           onClick={handleGenerate}
           disabled={isGenerating || promptLayers.length === 0}
           className="flex-1 cde-gradient-primary"
+          size="sm"
         >
           {isGenerating ? (
             <>Generating...</>
           ) : (
             <>
-              <Sparkles className="w-4 h-4 mr-2" />
-              Generate from Composition
+              <Sparkles className="w-3.5 h-3.5 mr-2" />
+              Generate
             </>
           )}
         </Button>

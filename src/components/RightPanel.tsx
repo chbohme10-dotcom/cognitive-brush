@@ -92,35 +92,39 @@ export const RightPanel = () => {
           width: isActivatorHovered || isOpen ? '48px' : '10px',
           paddingTop: (isActivatorHovered || isOpen) ? '8px' : '0',
           paddingBottom: (isActivatorHovered || isOpen) ? '8px' : '0',
-          background: `
-            linear-gradient(to right, hsl(var(--cde-bg-tertiary)) 0%, hsl(var(--cde-bg-tertiary)) 10px, hsl(var(--cde-bg-tertiary)) 100%),
-            repeating-linear-gradient(
-              0deg,
-              hsl(var(--cde-border-subtle)) 0px,
-              hsl(var(--cde-border-subtle)) 1px,
-              transparent 1px,
-              transparent 20px
-            )
-          `,
-          backgroundPosition: '0 0, 0 0',
-          backgroundSize: '100% 100%, 10px 100px'
+          background: 'hsl(var(--cde-bg-tertiary))'
         }}
         onMouseEnter={() => setIsActivatorHovered(true)}
         onMouseLeave={() => setIsActivatorHovered(false)}
       >
-        {/* Ruler markings */}
-        <div className="absolute left-0 top-0 bottom-0 w-[10px] flex flex-col pointer-events-none">
-          {Array.from({ length: 50 }).map((_, i) => (
-            <div key={i} className="flex-shrink-0 h-5 w-full border-b border-[hsl(var(--cde-border-subtle))] relative">
-              {i % 5 === 0 && (
-                <span 
-                  className="absolute left-0 top-0.5 text-[8px] text-[hsl(var(--cde-text-muted))] font-mono"
-                  style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-                >
-                  {i * 20}
-                </span>
-              )}
-            </div>
+        {/* Ruler markings - Left edge */}
+        <div 
+          className="absolute left-0 top-0 bottom-0 w-[10px] pointer-events-none"
+          style={{
+            backgroundImage: `
+              repeating-linear-gradient(
+                to bottom,
+                hsl(var(--cde-border-subtle)) 0px,
+                hsl(var(--cde-border-subtle)) 1px,
+                transparent 1px,
+                transparent 20px
+              )
+            `,
+            backgroundSize: '100% 20px'
+          }}
+        >
+          {Array.from({ length: Math.floor(window.innerHeight / 100) }).map((_, i) => (
+            <span 
+              key={i}
+              className="absolute left-0 text-[8px] text-[hsl(var(--cde-text-muted))] font-mono"
+              style={{ 
+                top: `${i * 100}px`,
+                writingMode: 'vertical-rl', 
+                transform: 'rotate(180deg)' 
+              }}
+            >
+              {i * 100}
+            </span>
           ))}
         </div>
 
