@@ -14,7 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      assets: {
+        Row: {
+          category: string
+          complexity: string
+          contextual_previews: Json | null
+          created_at: string
+          description: string | null
+          id: string
+          image_hint: string[] | null
+          name: string
+          storage_path: string
+          updated_at: string
+          url: string
+          user_id: string | null
+        }
+        Insert: {
+          category?: string
+          complexity?: string
+          contextual_previews?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_hint?: string[] | null
+          name: string
+          storage_path: string
+          updated_at?: string
+          url: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          complexity?: string
+          contextual_previews?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_hint?: string[] | null
+          name?: string
+          storage_path?: string
+          updated_at?: string
+          url?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          canvas_data: Json
+          created_at: string
+          id: string
+          name: string
+          storage_path: string
+          thumbnail_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          canvas_data?: Json
+          created_at?: string
+          id?: string
+          name: string
+          storage_path: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          canvas_data?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          storage_path?: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
