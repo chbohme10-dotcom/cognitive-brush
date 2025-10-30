@@ -4,16 +4,33 @@ import { Badge } from "@/components/ui/badge";
 
 interface AssetGridProps {
   assets: AssetMetadata[];
-  onAssetClick: (asset: AssetMetadata) => void;
+  isLoading: boolean;
+  onAssetClick?: (asset: AssetMetadata) => void;
 }
 
-export const AssetGrid = ({ assets, onAssetClick }: AssetGridProps) => {
+export const AssetGrid = ({ assets, isLoading, onAssetClick }: AssetGridProps) => {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-6">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Card key={i} className="animate-pulse">
+            <div className="aspect-square bg-[hsl(var(--cde-bg-tertiary))]" />
+            <div className="p-3 space-y-2">
+              <div className="h-4 bg-[hsl(var(--cde-bg-tertiary))] rounded" />
+              <div className="h-3 bg-[hsl(var(--cde-bg-tertiary))] rounded w-2/3" />
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-6">
       {assets.map(asset => (
         <Card
           key={asset.id}
-          onClick={() => onAssetClick(asset)}
+          onClick={() => onAssetClick?.(asset)}
           className="cursor-pointer hover:border-[hsl(var(--cde-accent-purple))] transition-all group overflow-hidden"
         >
           <div className="aspect-square bg-[hsl(var(--cde-bg-tertiary))] relative overflow-hidden">

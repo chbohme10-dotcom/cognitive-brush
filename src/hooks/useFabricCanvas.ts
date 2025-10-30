@@ -46,6 +46,10 @@ export const useFabricCanvas = (
       renderOnAddRemove: true,
     });
 
+    // Ensure white background is applied
+    canvas.backgroundColor = '#ffffff';
+    canvas.renderAll();
+
     fabricCanvasRef.current = canvas;
     setIsReady(true);
 

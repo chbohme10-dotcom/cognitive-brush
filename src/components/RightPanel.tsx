@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayersPanel } from "./panels/LayersPanel";
+import { FunctionalLayersPanel } from "./panels/FunctionalLayersPanel";
 import { PropertiesPanel } from "./panels/PropertiesPanel";
 import { ColorSphere } from "./panels/ColorSphere";
 import { AIToolsPanel } from "./ai/AIToolsPanel";
@@ -8,19 +8,18 @@ import { LayerStripPanel } from "./panels/LayerStripPanel";
 import { Layers, Settings2, Palette, Sparkles, Microscope, X, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Canvas as FabricCanvas } from 'fabric';
 
-export const RightPanel = () => {
+interface RightPanelProps {
+  canvasLayers: ReturnType<typeof import("@/hooks/useCanvasLayers").useCanvasLayers>;
+  fabricCanvas: FabricCanvas | null;
+}
+
+export const RightPanel = ({ canvasLayers }: RightPanelProps) => {
   const [activePanel, setActivePanel] = useState<string>("layers");
   const [isOpen, setIsOpen] = useState(true);
   const [isActivatorHovered, setIsActivatorHovered] = useState(false);
   const [showMiniLayers, setShowMiniLayers] = useState(true);
-
-  // Mock layer data - in production this would come from a global state
-  const [layers, setLayers] = useState([
-    { id: "1", name: "Background", visible: true, locked: false, thumbnail: undefined },
-    { id: "2", name: "Layer 1", visible: true, locked: false, thumbnail: undefined },
-    { id: "3", name: "Layer 2", visible: true, locked: false, thumbnail: undefined },
-  ]);
 
   const panels = [
     { id: "layers", icon: Layers, label: "Layers" },
@@ -31,42 +30,32 @@ export const RightPanel = () => {
   ];
 
   const handleLayerClick = (id: string) => {
-    console.log("Layer clicked:", id);
+    canvasLayers.selectLayer(id);
   };
 
   const handleToggleVisibility = (id: string) => {
-    setLayers(layers.map(layer => 
-      layer.id === id ? { ...layer, visible: !layer.visible } : layer
-    ));
+    canvasLayers.toggleVisibility(id);
   };
 
   const handleToggleLock = (id: string) => {
-    setLayers(layers.map(layer => 
-      layer.id === id ? { ...layer, locked: !layer.locked } : layer
-    ));
+    canvasLayers.toggleLock(id);
   };
 
   const handleReorder = (dragId: string, dropId: string) => {
-    const dragIndex = layers.findIndex(l => l.id === dragId);
-    const dropIndex = layers.findIndex(l => l.id === dropId);
-    const newLayers = [...layers];
-    const [draggedLayer] = newLayers.splice(dragIndex, 1);
-    newLayers.splice(dropIndex, 0, draggedLayer);
-    setLayers(newLayers);
+    const dragIndex = canvasLayers.layers.findIndex(l => l.id === dragId);
+    const dropIndex = canvasLayers.layers.findIndex(l => l.id === dropId);
+    canvasLayers.reorderLayers(dragIndex, dropIndex);
   };
 
   return (
     <aside 
       className="flex border-l border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] transition-all duration-300 ease-in-out relative"
-      style={{ 
-        marginRight: !isOpen && !isActivatorHovered ? '-48px' : '0'
-      }}
     >
       {/* Mini Layers Strip - Left Edge */}
       {showMiniLayers && (
         <LayerStripPanel
-        layers={layers}
-        activeLayerId={layers[0]?.id}
+        layers={canvasLayers.layers}
+        activeLayerId={canvasLayers.activeLayerId || undefined}
         onLayerClick={handleLayerClick}
         onToggleVisibility={handleToggleVisibility}
         onToggleLock={handleToggleLock}
@@ -77,7 +66,19 @@ export const RightPanel = () => {
       {/* Main Panel Drawer */}
       {isOpen && (
         <div className="w-80 flex flex-col border-l border-[hsl(var(--cde-border-subtle))]">
-          {activePanel === "layers" && <LayersPanel />}
+          {activePanel === "layers" && (
+            <FunctionalLayersPanel
+              layers={canvasLayers.layers}
+              activeLayerId={canvasLayers.activeLayerId}
+              onSelectLayer={canvasLayers.selectLayer}
+              onToggleVisibility={canvasLayers.toggleVisibility}
+              onToggleLock={canvasLayers.toggleLock}
+              onDeleteLayer={canvasLayers.deleteLayer}
+              onUpdateName={canvasLayers.updateLayerName}
+              onUpdateOpacity={canvasLayers.updateLayerOpacity}
+              onAddLayer={canvasLayers.addLayer}
+            />
+          )}
           {activePanel === "properties" && <PropertiesPanel />}
           {activePanel === "color" && <ColorSphere />}
           {activePanel === "ai" && <AIToolsPanel />}
@@ -89,9 +90,9 @@ export const RightPanel = () => {
       <div 
         className="flex flex-col items-center relative overflow-hidden transition-all duration-300 ease-in-out border-l border-[hsl(var(--cde-border-subtle))]"
         style={{
-          width: isActivatorHovered || isOpen ? '48px' : '10px',
-          paddingTop: (isActivatorHovered || isOpen) ? '8px' : '0',
-          paddingBottom: (isActivatorHovered || isOpen) ? '8px' : '0',
+          width: '48px',
+          paddingTop: '8px',
+          paddingBottom: '8px',
           background: 'hsl(var(--cde-bg-tertiary))'
         }}
         onMouseEnter={() => setIsActivatorHovered(true)}
@@ -128,9 +129,8 @@ export const RightPanel = () => {
           ))}
         </div>
 
-        {/* Buttons - only visible when hovered or open */}
-        {(isActivatorHovered || isOpen) && (
-          <div className="flex flex-col gap-1 animate-fade-in">
+        {/* Buttons */}
+        <div className="flex flex-col gap-1">
         
         {panels.map((panel) => (
           <TooltipProvider key={panel.id}>
@@ -207,8 +207,7 @@ export const RightPanel = () => {
             </Tooltip>
           </TooltipProvider>
         )}
-          </div>
-        )}
+        </div>
       </div>
     </aside>
   );

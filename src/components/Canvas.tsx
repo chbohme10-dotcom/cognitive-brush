@@ -1,13 +1,14 @@
-import { useRef, useState, MouseEvent, WheelEvent } from "react";
+import React, { useRef, useState, MouseEvent, WheelEvent } from "react";
 import { useFabricCanvas, ToolType, ToolSettings } from "@/hooks/useFabricCanvas";
 
 interface CanvasProps {
   activeTool: ToolType;
   toolSettings: ToolSettings;
   onAddImage?: (imageUrl: string) => void;
+  onCanvasReady?: (canvas: any) => void;
 }
 
-export const Canvas = ({ activeTool, toolSettings }: CanvasProps) => {
+export const Canvas = ({ activeTool, toolSettings, onCanvasReady }: CanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
@@ -20,6 +21,13 @@ export const Canvas = ({ activeTool, toolSettings }: CanvasProps) => {
     canvas,
     isReady,
   } = useFabricCanvas(canvasRef, activeTool, toolSettings);
+
+  // Notify parent when canvas is ready
+  React.useEffect(() => {
+    if (canvas && onCanvasReady) {
+      onCanvasReady(canvas);
+    }
+  }, [canvas, onCanvasReady]);
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
     if (isPanning && e.buttons === 2) {
