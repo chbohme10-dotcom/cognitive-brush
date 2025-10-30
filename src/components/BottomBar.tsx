@@ -3,16 +3,13 @@ import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MiniSettingsStrip } from "./MiniSettingsStrip";
 
-interface BottomBarProps {
-  onOpenAssetBrowser: () => void;
-  onToggleSettings: () => void;
-}
-
-export const BottomBar = ({ onOpenAssetBrowser, onToggleSettings }: BottomBarProps) => {
+export const BottomBar = () => {
   const [isHovered, setIsHovered] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <>
+      {showSettings && <MiniSettingsStrip onClose={() => setShowSettings(false)} />}
       
       <footer 
         className="border-t border-[hsl(var(--cde-border-subtle))] relative overflow-hidden transition-all duration-300 ease-in-out"
@@ -57,7 +54,8 @@ export const BottomBar = ({ onOpenAssetBrowser, onToggleSettings }: BottomBarPro
               <Button 
                 variant="ghost" 
                 size="sm"
-                onClick={onToggleSettings}
+                onClick={() => setShowSettings(!showSettings)}
+                className={showSettings ? "bg-[hsl(var(--cde-accent-purple))] text-white" : ""}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Tool Settings

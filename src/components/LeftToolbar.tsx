@@ -36,18 +36,14 @@ const tools = [
   { id: 'zoom', icon: Search, label: 'Zoom' },
 ];
 
-interface LeftToolbarProps {
-  activeTool: string;
-  onToolChange: (tool: string) => void;
-}
-
-export const LeftToolbar = ({ activeTool, onToolChange }: LeftToolbarProps) => {
+export const LeftToolbar = () => {
+  const [activeTool, setActiveTool] = useState('select');
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   const handleToolClick = (toolId: string) => {
-    onToolChange(toolId);
+    setActiveTool(toolId);
     if (toolId === 'ai') {
       setShowGenerateDialog(true);
     }
