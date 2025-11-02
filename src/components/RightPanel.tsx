@@ -58,9 +58,6 @@ export const RightPanel = () => {
   return (
     <aside 
       className="flex border-l border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] transition-all duration-300 ease-in-out relative"
-      style={{ 
-        marginRight: !isOpen && !isActivatorHovered ? '-48px' : '0'
-      }}
     >
       {/* Mini Layers Strip - Left Edge */}
       {showMiniLayers && (
