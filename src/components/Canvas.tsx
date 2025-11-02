@@ -1,12 +1,46 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useFabricCanvas } from "@/hooks/useFabricCanvas";
+import { Canvas as FabricCanvas } from "fabric";
+import { AssetMetadata } from "@/hooks/useAssets";
 
-export const Canvas = () => {
+interface CanvasProps {
+  onCanvasReady?: (canvas: FabricCanvas | null) => void;
+  fabricCanvas?: FabricCanvas | null;
+}
+
+export const Canvas = ({ onCanvasReady }: CanvasProps) => {
   const [zoom, setZoom] = useState(125);
   const [coordinates, setCoordinates] = useState({ x: 0, y: 0 });
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
   const panStartRef = useRef({ x: 0, y: 0 });
+  const canvasElRef = useRef<HTMLCanvasElement>(null);
+  const { fabricCanvas, addImageToCanvas } = useFabricCanvas(canvasElRef.current);
+
+  useEffect(() => {
+    if (fabricCanvas && onCanvasReady) {
+      onCanvasReady(fabricCanvas);
+    }
+  }, [fabricCanvas, onCanvasReady]);
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    try {
+      const assetData = e.dataTransfer.getData('application/json');
+      if (assetData) {
+        const asset: AssetMetadata = JSON.parse(assetData);
+        await addImageToCanvas(asset.url, asset.name);
+      }
+    } catch (error) {
+      console.error('Error dropping asset:', error);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -62,6 +96,8 @@ export const Canvas = () => {
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
       onContextMenu={handleContextMenu}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
       style={{ cursor: isPanning ? 'grabbing' : 'default' }}
     >
       {/* Canvas Grid Background */}
@@ -80,28 +116,16 @@ export const Canvas = () => {
       {/* Main Canvas Content */}
       <div className="absolute inset-0 flex items-center justify-center p-8">
         <div 
-          className="relative bg-[hsl(var(--cde-bg-secondary))] rounded-lg shadow-2xl border-2 border-[hsl(var(--cde-border-emphasis))]"
+          className="relative bg-white rounded-lg shadow-2xl border-2 border-[hsl(var(--cde-accent-purple))]"
           style={{
             width: `${zoom}%`,
             aspectRatio: '16/9',
-            boxShadow: '0 0 60px hsl(262 83% 58% / 0.2)',
+            boxShadow: '0 0 60px hsl(262 83% 58% / 0.3)',
             transform: `translate(${panOffset.x}px, ${panOffset.y}px)`
           }}
         >
-          {/* Canvas Content Placeholder */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <div className="w-32 h-32 mx-auto rounded-full cde-gradient-primary opacity-20 blur-3xl" />
-              <div className="relative">
-                <h2 className="text-3xl font-bold text-[hsl(var(--cde-text-primary))] mb-2">
-                  Infinite Canvas
-                </h2>
-                <p className="text-[hsl(var(--cde-text-secondary))]">
-                  Your creative workspace begins here
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Fabric.js Canvas */}
+          <canvas ref={canvasElRef} className="w-full h-full" />
           
           {/* Corner Coordinates Display */}
           <div className="absolute top-2 left-2 px-2 py-1 bg-[hsl(var(--cde-bg-tertiary))]/90 backdrop-blur-sm rounded text-xs font-mono text-[hsl(var(--cde-text-secondary))]">

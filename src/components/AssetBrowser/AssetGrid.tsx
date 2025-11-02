@@ -5,17 +5,24 @@ import { Badge } from "@/components/ui/badge";
 interface AssetGridProps {
   assets: AssetMetadata[];
   onAssetClick: (asset: AssetMetadata) => void;
+  onDragStart?: (asset: AssetMetadata) => void;
 }
 
-export const AssetGrid = ({ assets, onAssetClick }: AssetGridProps) => {
+export const AssetGrid = ({ assets, onAssetClick, onDragStart }: AssetGridProps) => {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-6">
       {assets.map(asset => (
-        <Card
-          key={asset.id}
-          onClick={() => onAssetClick(asset)}
-          className="cursor-pointer hover:border-[hsl(var(--cde-accent-purple))] transition-all group overflow-hidden"
-        >
+      <div
+        key={asset.id}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData('application/json', JSON.stringify(asset));
+          e.dataTransfer.effectAllowed = 'copy';
+          onDragStart?.(asset);
+        }}
+        onClick={() => onAssetClick(asset)}
+        className="cursor-grab active:cursor-grabbing hover:border-[hsl(var(--cde-accent-purple))] transition-all group overflow-hidden"
+      >
           <div className="aspect-square bg-[hsl(var(--cde-bg-tertiary))] relative overflow-hidden">
             <img 
               src={asset.url} 

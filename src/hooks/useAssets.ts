@@ -23,25 +23,86 @@ export const useAssets = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
+  // Load assets from database
+  useEffect(() => {
+    loadAssets();
+  }, []);
+
+  const loadAssets = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('assets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        setAssets(data.map(asset => ({
+          id: asset.id,
+          name: asset.name,
+          url: asset.url,
+          category: asset.category as any,
+          complexity: asset.complexity as any,
+          imageHint: asset.image_hint || [],
+          description: asset.description,
+          contextual_previews: asset.contextual_previews,
+          created_at: asset.created_at,
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading assets:', error);
+      toast.error('Failed to load assets');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const uploadAsset = async (file: File, options: { addToCanvas?: boolean; addToLayer?: boolean } = {}) => {
     setIsLoading(true);
     try {
-      // Upload to storage (placeholder - requires storage bucket setup)
       const fileName = `${Date.now()}-${file.name}`;
-      const fileExt = file.name.split('.').pop();
-      
-      // Create object URL for immediate use
-      const objectUrl = URL.createObjectURL(file);
-      
-      // AI auto-tagging simulation (would call edge function in production)
+      const storagePath = `user-uploads/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('assets')
+        .upload(storagePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('assets')
+        .getPublicUrl(storagePath);
+
+      // Save to database
+      const { data: session } = await supabase.auth.getSession();
+      const { data: assetData, error: dbError } = await supabase
+        .from('assets')
+        .insert({
+          name: file.name,
+          storage_path: storagePath,
+          url: publicUrl,
+          category: 'other',
+          complexity: 'medium',
+          image_hint: ['uploaded', 'new'],
+          user_id: session?.session?.user.id,
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
       const newAsset: AssetMetadata = {
-        id: fileName,
-        name: file.name,
-        url: objectUrl,
-        category: 'other',
-        complexity: 'medium',
-        imageHint: ['uploaded', 'new'],
-        created_at: new Date().toISOString(),
+        id: assetData.id,
+        name: assetData.name,
+        url: assetData.url,
+        category: assetData.category as any,
+        complexity: assetData.complexity as any,
+        imageHint: assetData.image_hint || [],
+        created_at: assetData.created_at,
       };
 
       setAssets(prev => [newAsset, ...prev]);

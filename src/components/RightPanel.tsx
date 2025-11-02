@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Canvas as FabricCanvas, Rect } from "fabric";
 import { LayersPanel } from "./panels/LayersPanel";
 import { PropertiesPanel } from "./panels/PropertiesPanel";
 import { ColorSphere } from "./panels/ColorSphere";
@@ -8,19 +9,30 @@ import { LayerStripPanel } from "./panels/LayerStripPanel";
 import { Layers, Settings2, Palette, Sparkles, Microscope, X, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useCanvasLayers } from "@/hooks/useCanvasLayers";
 
-export const RightPanel = () => {
+interface RightPanelProps {
+  canvasLayers: ReturnType<typeof useCanvasLayers>;
+  fabricCanvas: FabricCanvas | null;
+}
+
+export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
   const [activePanel, setActivePanel] = useState<string>("layers");
   const [isOpen, setIsOpen] = useState(true);
   const [isActivatorHovered, setIsActivatorHovered] = useState(false);
   const [showMiniLayers, setShowMiniLayers] = useState(true);
 
-  // Mock layer data - in production this would come from a global state
-  const [layers, setLayers] = useState([
-    { id: "1", name: "Background", visible: true, locked: false, thumbnail: undefined },
-    { id: "2", name: "Layer 1", visible: true, locked: false, thumbnail: undefined },
-    { id: "3", name: "Layer 2", visible: true, locked: false, thumbnail: undefined },
-  ]);
+  const handleAddLayer = () => {
+    if (!fabricCanvas) return;
+    const rect = new Rect({
+      left: 100,
+      top: 100,
+      fill: 'hsl(262, 83%, 58%)',
+      width: 200,
+      height: 200,
+    });
+    canvasLayers.addLayer(rect, 'New Rectangle');
+  };
 
   const panels = [
     { id: "layers", icon: Layers, label: "Layers" },
@@ -30,31 +42,6 @@ export const RightPanel = () => {
     { id: "microscope", icon: Microscope, label: "Microscope" },
   ];
 
-  const handleLayerClick = (id: string) => {
-    console.log("Layer clicked:", id);
-  };
-
-  const handleToggleVisibility = (id: string) => {
-    setLayers(layers.map(layer => 
-      layer.id === id ? { ...layer, visible: !layer.visible } : layer
-    ));
-  };
-
-  const handleToggleLock = (id: string) => {
-    setLayers(layers.map(layer => 
-      layer.id === id ? { ...layer, locked: !layer.locked } : layer
-    ));
-  };
-
-  const handleReorder = (dragId: string, dropId: string) => {
-    const dragIndex = layers.findIndex(l => l.id === dragId);
-    const dropIndex = layers.findIndex(l => l.id === dropId);
-    const newLayers = [...layers];
-    const [draggedLayer] = newLayers.splice(dragIndex, 1);
-    newLayers.splice(dropIndex, 0, draggedLayer);
-    setLayers(newLayers);
-  };
-
   return (
     <aside 
       className="flex border-l border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] transition-all duration-300 ease-in-out relative"
@@ -62,19 +49,37 @@ export const RightPanel = () => {
       {/* Mini Layers Strip - Left Edge */}
       {showMiniLayers && (
         <LayerStripPanel
-        layers={layers}
-        activeLayerId={layers[0]?.id}
-        onLayerClick={handleLayerClick}
-        onToggleVisibility={handleToggleVisibility}
-        onToggleLock={handleToggleLock}
-        onReorder={handleReorder}
-      />
+          layers={canvasLayers.layers.map(l => ({
+            id: l.id,
+            name: l.name,
+            visible: l.visible,
+            locked: l.locked,
+            thumbnail: undefined,
+          }))}
+          activeLayerId={canvasLayers.activeLayerId || undefined}
+          onLayerClick={canvasLayers.selectLayer}
+          onToggleVisibility={canvasLayers.toggleVisibility}
+          onToggleLock={canvasLayers.toggleLock}
+          onReorder={canvasLayers.reorderLayers}
+        />
       )}
 
       {/* Main Panel Drawer */}
       {isOpen && (
         <div className="w-80 flex flex-col border-l border-[hsl(var(--cde-border-subtle))]">
-          {activePanel === "layers" && <LayersPanel />}
+          {activePanel === "layers" && (
+            <LayersPanel
+              layers={canvasLayers.layers}
+              activeLayerId={canvasLayers.activeLayerId}
+              onLayerClick={canvasLayers.selectLayer}
+              onToggleVisibility={canvasLayers.toggleVisibility}
+              onToggleLock={canvasLayers.toggleLock}
+              onDeleteLayer={canvasLayers.deleteLayer}
+              onUpdateName={canvasLayers.updateLayerName}
+              onUpdateOpacity={canvasLayers.updateLayerOpacity}
+              onAddLayer={handleAddLayer}
+            />
+          )}
           {activePanel === "properties" && <PropertiesPanel />}
           {activePanel === "color" && <ColorSphere />}
           {activePanel === "ai" && <AIToolsPanel />}
