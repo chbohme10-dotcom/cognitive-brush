@@ -49,7 +49,7 @@ export const AssetGrid = ({ assets, onAssetClick, onDragStart }: AssetGridProps)
               )}
             </div>
           </div>
-        </Card>
+        </div>
       ))}
       
       {assets.length === 0 && (

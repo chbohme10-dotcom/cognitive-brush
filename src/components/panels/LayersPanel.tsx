@@ -19,7 +19,7 @@ interface LayersPanelProps {
 }
 
 export const LayersPanel = ({
-  layers,
+  layers = [],
   activeLayerId,
   onLayerClick,
   onToggleVisibility,
