@@ -1,5 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Canvas as FabricCanvas, FabricImage } from "fabric";
+
+// Extend Fabric types to include custom data
+declare module "fabric" {
+  interface FabricObject {
+    data?: {
+      layerId: string;
+      layerName: string;
+    };
+  }
+}
 
 export const useFabricCanvas = (canvasEl: HTMLCanvasElement | null) => {
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);

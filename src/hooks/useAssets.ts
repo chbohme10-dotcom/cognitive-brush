@@ -31,7 +31,7 @@ export const useAssets = () => {
   const loadAssets = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('assets')
         .select('*')
         .order('created_at', { ascending: false });
@@ -39,7 +39,7 @@ export const useAssets = () => {
       if (error) throw error;
 
       if (data) {
-        setAssets(data.map(asset => ({
+        setAssets(data.map((asset: any) => ({
           id: asset.id,
           name: asset.name,
           url: asset.url,
@@ -79,7 +79,7 @@ export const useAssets = () => {
 
       // Save to database
       const { data: session } = await supabase.auth.getSession();
-      const { data: assetData, error: dbError } = await supabase
+      const { data: assetData, error: dbError } = await (supabase as any)
         .from('assets')
         .insert({
           name: file.name,
@@ -94,6 +94,7 @@ export const useAssets = () => {
         .single();
 
       if (dbError) throw dbError;
+      if (!assetData) throw new Error('Failed to create asset');
 
       const newAsset: AssetMetadata = {
         id: assetData.id,

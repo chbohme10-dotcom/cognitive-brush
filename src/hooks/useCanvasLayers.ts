@@ -2,6 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { Canvas as FabricCanvas, FabricObject } from 'fabric';
 import { toast } from 'sonner';
 
+// Extend Fabric types to include custom data
+declare module "fabric" {
+  interface FabricObject {
+    data?: {
+      layerId: string;
+      layerName: string;
+    };
+  }
+}
+
 export interface CanvasLayer {
   id: string;
   name: string;
@@ -141,8 +151,12 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
       const dragIndex = objects.indexOf(dragLayer.fabricObject);
       const dropIndex = objects.indexOf(dropLayer.fabricObject);
 
+      const allObjects = fabricCanvas.getObjects();
       fabricCanvas.remove(dragLayer.fabricObject);
-      fabricCanvas.insertAt(dragLayer.fabricObject, dropIndex);
+      // Re-insert at the correct position
+      allObjects.splice(dropIndex, 0, dragLayer.fabricObject);
+      fabricCanvas.clear();
+      allObjects.forEach(obj => fabricCanvas.add(obj));
       fabricCanvas.requestRenderAll();
     }
   }, [fabricCanvas, layers]);
