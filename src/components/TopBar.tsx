@@ -20,15 +20,12 @@ import {
   Image
 } from "lucide-react";
 import { AssetUploadButton } from "./AssetBrowser/AssetUploadButton";
-import { AssetBrowserModal } from "./AssetBrowser/AssetBrowserModal";
 
-export const TopBar = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) => {
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+export const TopBar = ({ fabricCanvas, onToggleAssets }: { fabricCanvas: FabricCanvas | null; onToggleAssets: () => void }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
     <>
-      <AssetBrowserModal open={showAssetBrowser} onOpenChange={setShowAssetBrowser} />
       
       <header 
         className="border-b border-[hsl(var(--cde-border-subtle))] flex items-center justify-between relative overflow-hidden transition-all duration-300 ease-in-out"
@@ -82,7 +79,7 @@ export const TopBar = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) 
             variant="ghost" 
             size="sm" 
             className="gap-2 text-[hsl(var(--cde-text-secondary))] hover:text-[hsl(var(--cde-text-primary))]"
-            onClick={() => setShowAssetBrowser(true)}
+            onClick={onToggleAssets}
           >
             <Image className="w-4 h-4" />
             Assets
