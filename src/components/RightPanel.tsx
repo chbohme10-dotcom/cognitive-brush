@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Canvas as FabricCanvas, Rect } from "fabric";
+import { Canvas as FabricCanvas, Rect, FabricImage } from "fabric";
 import { LayersPanel } from "./panels/LayersPanel";
 import { PropertiesPanel } from "./panels/PropertiesPanel";
 import { ColorSphere } from "./panels/ColorSphere";
@@ -10,6 +10,8 @@ import { Layers, Settings2, Palette, Sparkles, Microscope, X, LayoutList } from 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanvasLayers } from "@/hooks/useCanvasLayers";
+import { toast } from "sonner";
+import { AssetMetadata } from "@/hooks/useAssets";
 
 interface RightPanelProps {
   canvasLayers: ReturnType<typeof useCanvasLayers>;
@@ -21,6 +23,7 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
   const [isOpen, setIsOpen] = useState(true);
   const [isActivatorHovered, setIsActivatorHovered] = useState(false);
   const [showMiniLayers, setShowMiniLayers] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const handleAddLayer = () => {
     if (!fabricCanvas) return;
@@ -34,6 +37,52 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
     canvasLayers.addLayer(rect, 'New Rectangle');
   };
 
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    if (!fabricCanvas) return;
+
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (!data) return;
+
+      const asset: AssetMetadata = JSON.parse(data);
+      
+      const img = await FabricImage.fromURL(asset.url, { crossOrigin: 'anonymous' });
+      
+      const scale = Math.min(
+        fabricCanvas.width! / 4 / img.width!,
+        fabricCanvas.height! / 4 / img.height!
+      );
+      
+      img.scale(scale);
+      img.set({
+        left: fabricCanvas.width! / 2 - (img.width! * scale) / 2,
+        top: fabricCanvas.height! / 2 - (img.height! * scale) / 2,
+      });
+
+      canvasLayers.addLayer(img, asset.name);
+      toast.success(`Added ${asset.name} to layers`);
+    } catch (error) {
+      console.error('Error adding asset to layers:', error);
+      toast.error('Failed to add asset to layers');
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
   const panels = [
     { id: "layers", icon: Layers, label: "Layers" },
     { id: "properties", icon: Settings2, label: "Properties" },
@@ -44,7 +93,12 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
 
   return (
     <aside 
-      className="flex border-l border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] transition-all duration-300 ease-in-out relative"
+      className={`flex border-l border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] transition-all duration-300 ease-in-out relative ${
+        isDragOver ? 'ring-2 ring-[hsl(var(--cde-accent-purple))] ring-inset' : ''
+      }`}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
     >
       {/* Mini Layers Strip - Left Edge */}
       {showMiniLayers && (
