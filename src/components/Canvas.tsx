@@ -26,10 +26,12 @@ export const Canvas = ({ onCanvasReady }: CanvasProps) => {
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     try {
       const assetData = e.dataTransfer.getData('application/json');
       if (assetData) {
         const asset: AssetMetadata = JSON.parse(assetData);
+        console.log('Dropping asset:', asset);
         await addImageToCanvas(asset.url, asset.name);
       }
     } catch (error) {
@@ -118,14 +120,19 @@ export const Canvas = ({ onCanvasReady }: CanvasProps) => {
         <div 
           className="relative bg-white rounded-lg shadow-2xl border-2 border-[hsl(var(--cde-accent-purple))]"
           style={{
-            width: `${zoom}%`,
-            aspectRatio: '16/9',
+            width: '1920px',
+            height: '1080px',
             boxShadow: '0 0 60px hsl(262 83% 58% / 0.3)',
-            transform: `translate(${panOffset.x}px, ${panOffset.y}px)`
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom / 100})`
           }}
         >
           {/* Fabric.js Canvas */}
-          <canvas ref={canvasElRef} className="w-full h-full" />
+          <canvas 
+            ref={canvasElRef} 
+            width={1920}
+            height={1080}
+            style={{ width: '100%', height: '100%' }}
+          />
           
           {/* Corner Coordinates Display */}
           <div className="absolute top-2 left-2 px-2 py-1 bg-[hsl(var(--cde-bg-tertiary))]/90 backdrop-blur-sm rounded text-xs font-mono text-[hsl(var(--cde-text-secondary))]">
