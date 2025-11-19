@@ -13,7 +13,7 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-[hsl(var(--cde-bg-primary))]">
-      <TopBar />
+      <TopBar fabricCanvas={fabricCanvas} />
       
       <div className="flex-1 flex overflow-hidden">
         <LeftToolbar />
