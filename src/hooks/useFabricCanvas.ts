@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Canvas as FabricCanvas, FabricImage } from "fabric";
+import { toast } from "sonner";
 
 // Extend Fabric types to include custom data
 declare module "fabric" {
@@ -56,8 +57,11 @@ export const useFabricCanvas = (canvasEl: HTMLCanvasElement | null) => {
       fabricCanvas.add(img);
       fabricCanvas.setActiveObject(img);
       fabricCanvas.requestRenderAll();
+      
+      toast.success(`Added ${layerName || 'image'} to canvas`);
     } catch (error) {
       console.error('Error adding image to canvas:', error);
+      toast.error('Failed to add image to canvas');
     }
   };
 
