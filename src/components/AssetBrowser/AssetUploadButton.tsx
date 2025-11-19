@@ -8,21 +8,54 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Upload, FolderPlus, Layers, ImagePlus } from "lucide-react";
 import { useAssets } from "@/hooks/useAssets";
+import { Canvas as FabricCanvas, FabricImage } from "fabric";
+import { toast } from "sonner";
 
-export const AssetUploadButton = () => {
+export const AssetUploadButton = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadAsset } = useAssets();
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, mode: 'assets' | 'canvas' | 'layer') => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, mode: 'assets' | 'canvas' | 'layer') => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach(file => {
-      uploadAsset(file, {
+    for (const file of Array.from(files)) {
+      const asset = await uploadAsset(file, {
         addToCanvas: mode === 'canvas',
         addToLayer: mode === 'layer',
       });
-    });
+      
+      // If adding to canvas and we have the canvas and asset, add it
+      if (mode === 'canvas' && fabricCanvas && asset) {
+        try {
+          const img = await FabricImage.fromURL(asset.url, { crossOrigin: 'anonymous' });
+          
+          const scale = Math.min(
+            fabricCanvas.width! / 4 / img.width!,
+            fabricCanvas.height! / 4 / img.height!
+          );
+          
+          img.scale(scale);
+          img.set({
+            left: fabricCanvas.width! / 2 - (img.width! * scale) / 2,
+            top: fabricCanvas.height! / 2 - (img.height! * scale) / 2,
+          });
+
+          img.data = {
+            layerId: `layer-${Date.now()}`,
+            layerName: asset.name,
+          };
+
+          fabricCanvas.add(img);
+          fabricCanvas.setActiveObject(img);
+          fabricCanvas.requestRenderAll();
+          toast.success(`Added ${asset.name} to canvas`);
+        } catch (error) {
+          console.error('Error adding to canvas:', error);
+          toast.error('Failed to add image to canvas');
+        }
+      }
+    }
 
     // Reset input
     if (fileInputRef.current) {

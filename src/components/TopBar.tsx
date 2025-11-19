@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Canvas as FabricCanvas } from "fabric";
 import { Button } from "@/components/ui/button";
 import { 
   Settings, 
@@ -21,7 +22,7 @@ import {
 import { AssetUploadButton } from "./AssetBrowser/AssetUploadButton";
 import { AssetBrowserModal } from "./AssetBrowser/AssetBrowserModal";
 
-export const TopBar = () => {
+export const TopBar = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) => {
   const [showAssetBrowser, setShowAssetBrowser] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -75,7 +76,7 @@ export const TopBar = () => {
           
           <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
           
-          <AssetUploadButton />
+          <AssetUploadButton fabricCanvas={fabricCanvas} />
           
           <Button 
             variant="ghost" 
