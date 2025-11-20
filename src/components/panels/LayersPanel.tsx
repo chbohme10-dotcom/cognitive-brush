@@ -61,7 +61,15 @@ export const LayersPanel = ({
         >
           {/* Thumbnail */}
           <div className="w-10 h-10 rounded bg-[hsl(var(--cde-bg-primary))] border border-[hsl(var(--cde-border-subtle))] flex items-center justify-center text-xs overflow-hidden flex-shrink-0">
-            🎨
+            {layer.thumbnail ? (
+              <img 
+                src={layer.thumbnail} 
+                alt={layer.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-[hsl(var(--cde-text-muted))]">🎨</span>
+            )}
           </div>
 
           {/* Name */}

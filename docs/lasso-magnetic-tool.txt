@@ -1,0 +1,4374 @@
+
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { floodFill } from "../utils/segmentation";
+import { computeEdgeMap, findEdgePath, simplifyPath, pathToSelection, findEdgePathV2, gaussianBlurEdgeMap, findEdgePathV3, bidirectionalClose, pathToSelectionAA, findEdgePathV4, calculatePathLength, getPointAtDistance, findEdgePathV5, findEdgeTrailNode, findEdgePathV6, findEdgeTrailNodeV6, calculateElasticStrength, findEdgePathV7, findEdgeTrailNodeV7, calculateProgressiveAnchorStrength, calculateEdgeQuality, calculateCursorInfluence, shouldDropNode } from "../utils/lasso";
+import { throttle } from "lodash";
+import { Layer } from "../entities/Layer"; // Ensure Layer is imported
+
+export default function CanvasWorkspace({
+  image,
+  layers,
+  activeTool,
+  settings,
+  selection,
+  hoverPreview,
+  activeLayerId,
+  hoveredLayerId,
+  onSelectionChange,
+  onHoverPreviewChange,
+  onCursorMove,
+  onLayerHover,
+  onLayerSelect,
+  showRightSidebar,
+  onSettingsChange, // New prop for settings changes
+  onCanvasZoomChange, // New prop for zoom changes
+}) {
+  const canvasRef = useRef(null);
+  const overlayRef = useRef(null);
+  const previewRef = useRef(null);
+  const layersRef = useRef(null);
+  const hoverLayerRef = useRef(null);
+  const interactionCanvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const [imageData, setImageData] = useState(null);
+  const [layerImageData, setLayerImageData] = useState({});
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  // New Lasso State
+  const [edgeMap, setEdgeMap] = useState(null);
+  const [isDrawingLasso, setIsDrawingLasso] = useState(false);
+  const [lassoNodes, setLassoNodes] = useState([]);
+  const [lassoPreviewPath, setLassoPreviewPath] = useState([]);
+
+  const [canvasScale, setCanvasScale] = useState(1); // This will store the initial fit scale
+  const animationFrameRef = useRef();
+  const lastCursorPos = useRef({ x: 0, y: 0 });
+  const screenCursorPos = useRef({ x: 0, y: 0 }); // NEW: To store screen coordinates for custom cursors
+
+  // New Lasso V2 State
+  const [lassoV2Nodes, setLassoV2Nodes] = useState([]);
+  const [lassoV2TrailNodes, setLassoV2TrailNodes] = useState([]);
+  const [lassoV2PreviewPath, setLassoV2PreviewPath] = useState([]);
+  const [isDrawingLassoV2, setIsDrawingLassoV2] = useState(false);
+  const lastNodeDropTime = useRef(0);
+  const lastNodePosition = useRef(null);
+
+  // New Lasso V3 State
+  const [lassoV3Nodes, setLassoV3Nodes] = useState([]);
+  const [lassoV3PreviewPath, setLassoV3PreviewPath] = useState([]);
+  const [isDrawingLassoV3, setIsDrawingLassoV3] = useState(false);
+  const [processedEdgeMap, setProcessedEdgeMap] = useState(null);
+  const lastMouseTime = useRef(Date.now());
+  const lastMousePosition = useRef([0, 0]);
+  const [cursorSpeed, setCursorSpeed] = useState(0);
+
+  // New Lasso V4 State
+  const [lassoV4Nodes, setLassoV4Nodes] = useState([]);
+  const [lassoV4PreviewPath, setLassoV4PreviewPath] = useState([]);
+  const [isDrawingLassoV4, setIsDrawingLassoV4] = useState(false);
+  const [lastAutoAnchorCheck, setLastAutoAnchorCheck] = useState({ x: 0, y: 0 });
+  const lastV4TimeCheck = useRef(Date.now());
+  const v4DistanceSinceLastAnchor = useRef(0);
+
+  // NEW Lasso V5 State - Edge-Trail Auto-Anchor
+  const [lassoV5Nodes, setLassoV5Nodes] = useState([]);
+  const [lassoV5PreviewPath, setLassoV5PreviewPath] = useState([]);
+  const [lassoV5EdgeTrailNode, setLassoV5EdgeTrailNode] = useState(null);
+  const [isDrawingLassoV5, setIsDrawingLassoV5] = useState(false);
+  const lastV5AutoAnchorTime = useRef(Date.now());
+  const lastV5AutoAnchorDistance = useRef(0);
+
+  // NEW Lasso V6 State - Smooth Elastic Anchoring
+  const [lassoV6Nodes, setLassoV6Nodes] = useState([]);
+  const [lassoV6PreviewPath, setLassoV6PreviewPath] = useState([]);
+  const [lassoV6EdgeTrailNode, setLassoV6EdgeTrailNode] = useState(null);
+  const [lassoV6EdgeTrailIndex, setLassoV6EdgeTrailIndex] = useState(0);
+  const [isDrawingLassoV6, setIsDrawingLassoV6] = useState(false);
+  const lastV6AnchoredDistance = useRef(0);
+
+  // NEW Lasso V7 State - Ultimate with Progressive Anchoring
+  const [lassoV7Nodes, setLassoV7Nodes] = useState([]); // All nodes with their anchor strengths
+  const [lassoV7PreviewPath, setLassoV7PreviewPath] = useState([]);
+  const [lassoV7EdgeTrailNode, setLassoV7EdgeTrailNode] = useState(null);
+  const [lassoV7EdgeTrailIndex, setLassoV7EdgeTrailIndex] = useState(0);
+  const [isDrawingLassoV7, setIsDrawingLassoV7] = useState(false);
+  const lastV7NodeDropTime = useRef(Date.now());
+  const lastV7NodeDropPos = useRef(null);
+  const lastV7ScrollTime = useRef(0);
+  const [v7LiveEdgeQuality, setV7LiveEdgeQuality] = useState(0);
+  const [v7LiveCursorInfluence, setV7LiveCursorInfluence] = useState(0);
+  const [v7UndoBuffer, setV7UndoBuffer] = useState([]); // For scroll undo/redo
+
+  // NEW Lasso V8 State - Directional with Prediction
+  const [lassoV8Nodes, setLassoV8Nodes] = useState([]);
+  const [lassoV8PreviewPath, setLassoV8PreviewPath] = useState([]);
+  const [lassoV8PredictionZone, setLassoV8PredictionZone] = useState(null);
+  const [lassoV8DirectionalCone, setLassoV8DirectionalCone] = useState(null);
+  const [isDrawingLassoV8, setIsDrawingLassoV8] = useState(false);
+  const lastV8AnchorTime = useRef(Date.now());
+  const [v8PathPattern, setV8PathPattern] = useState({ isStraight: false, isCurve: false });
+
+  // NEW Edit Mode State
+  const [isInEditMode, setIsInEditMode] = useState(false);
+  const [editModePath, setEditModePath] = useState([]);
+  const [isDraggingNode, setIsDraggingNode] = useState(false);
+  const [selectedNodeIndex, setSelectedNodeIndex] = useState(null);
+  const [hoveredNodeIndex, setHoveredNodeIndex] = useState(null);
+
+  // Pan and zoom with right-click
+  const [isPanning, setIsPanning] = useState(false);
+  const [isRightMouseDown, setIsRightMouseDown] = useState(false);
+  const panStartPos = useRef({ x: 0, y: 0 });
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const [canvasZoom, setCanvasZoom] = useState(1);
+
+  // Performance diagnostics state
+  const [showDiagnostics, setShowDiagnostics] = useState(true);
+  const [fps, setFps] = useState(0);
+  const [panLag, setPanLag] = useState(0);
+  const [zoomLag, setZoomLag] = useState(0);
+  const lastFrameTime = useRef(Date.now());
+  const frameCount = useRef(0);
+
+  // Performance monitoring
+  useEffect(() => {
+    const measureFPS = () => {
+      const now = Date.now();
+      const delta = now - lastFrameTime.current;
+      frameCount.current++;
+      
+      if (delta >= 1000) {
+        setFps(Math.round((frameCount.current * 1000) / delta));
+        frameCount.current = 0;
+        lastFrameTime.current = now;
+      }
+      
+      animationFrameRef.current = requestAnimationFrame(measureFPS);
+    };
+    
+    animationFrameRef.current = requestAnimationFrame(measureFPS);
+    return () => cancelAnimationFrame(animationFrameRef.current);
+  }, []);
+
+  // Load layer mask data (base64 PNG) into ImageData objects for quick pixel lookup
+  useEffect(() => {
+    const newLayerImageData = {};
+    const promises = layers.map(layer => {
+      return new Promise((resolve) => {
+        if (!layer.maskData) {
+          resolve();
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          newLayerImageData[layer.id] = ctx.getImageData(0, 0, img.width, img.height);
+          resolve();
+        };
+        img.onerror = () => {
+          console.warn(`Failed to load maskData for layer ${layer.id}`);
+          resolve();
+        };
+        img.src = layer.maskData;
+      });
+    });
+    Promise.all(promises).then(() => {
+      setLayerImageData(newLayerImageData);
+    });
+  }, [layers]);
+
+  // Setup image on canvas with proper scaling, pan, and zoom - OPTIMIZED
+  useEffect(() => {
+    if (!image || !canvasRef.current || !containerRef.current) return;
+
+    const baseImageCanvas = canvasRef.current;
+    const overlayCanvas = overlayRef.current;
+    const previewCanvas = previewRef.current;
+    const layersCanvas = layersRef.current;
+    const hoverLayerCanvas = hoverLayerRef.current;
+    const interactionCanvas = interactionCanvasRef.current;
+
+    const ctx = baseImageCanvas.getContext("2d");
+
+    // Calculate proper scaling to fit image in container initially
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const maxWidth = containerRect.width - 40;
+    const maxHeight = containerRect.height - 40;
+
+    const initialFitScale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+
+    // Set canvas dimensions to actual image size for 1:1 processing
+    const canvases = [baseImageCanvas, overlayCanvas, previewCanvas, layersCanvas, hoverLayerCanvas, interactionCanvas];
+    canvases.forEach(c => {
+      if (c) {
+        c.width = image.width;
+        c.height = image.height;
+        // Apply initial fit scale to style width/height
+        c.style.width = `${image.width * initialFitScale}px`;
+        c.style.height = `${image.height * initialFitScale}px`;
+        // Apply user zoom and pan transform with GPU acceleration
+        c.style.transform = `translate3d(${canvasOffset.x}px, ${canvasOffset.y}px, 0) scale(${canvasZoom})`;
+        c.style.transformOrigin = '0 0';
+        c.style.willChange = 'transform'; // Hint for GPU acceleration
+      }
+    });
+
+    setCanvasScale(initialFitScale);
+
+    // Draw image on the base image canvas and get data
+    ctx.clearRect(0, 0, baseImageCanvas.width, baseImageCanvas.height);
+    ctx.drawImage(image, 0, 0);
+    const data = ctx.getImageData(0, 0, baseImageCanvas.width, baseImageCanvas.height);
+    setImageData(data);
+
+    // Pre-compute edge map for lasso tool
+    let computedEdgeMap = computeEdgeMap(data);
+
+    if (settings.v3UseGaussianBlur) {
+      computedEdgeMap = gaussianBlurEdgeMap(computedEdgeMap, data.width, data.height, 1.0);
+    }
+
+    setEdgeMap(computedEdgeMap);
+    setProcessedEdgeMap(computedEdgeMap);
+
+    onSelectionChange(null);
+    onHoverPreviewChange(null);
+
+  }, [image, showRightSidebar, onSelectionChange, onHoverPreviewChange, settings.v3UseGaussianBlur, canvasOffset, canvasZoom]);
+
+  // Draw layers onto their dedicated canvas
+  useEffect(() => {
+    const ctx = layersRef.current?.getContext('2d');
+    if (!ctx || !image) return; // Ensure image is loaded for dimensions
+
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+    layers.forEach(layer => {
+      if (!layer.visible || !layer.imageData) return; // Only draw visible layers with image data
+
+      const img = new Image();
+      img.onload = () => {
+        ctx.globalAlpha = layer.opacity !== undefined ? layer.opacity : 1;
+        ctx.drawImage(img, 0, 0);
+        ctx.globalAlpha = 1; // Reset alpha for next draw
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load imageData for layer ${layer.id}`);
+      };
+      img.src = layer.imageData; // Draw the actual content (base64 PNG)
+    });
+  }, [layers, image]);
+
+  // Draw hovered layer highlight
+  useEffect(() => {
+      const ctx = hoverLayerRef.current?.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+      if (hoveredLayerId && activeTool === 'move') {
+          const mask = layerImageData[hoveredLayerId];
+          if (!mask) return;
+
+          // Create a new ImageData to draw the highlight
+          const outData = ctx.createImageData(ctx.canvas.width, ctx.canvas.height);
+          for (let i = 0; i < mask.data.length; i += 4) {
+              if (mask.data[i + 3] > 0) { // If the mask pixel is opaque
+                  outData.data[i] = 139;   // R (purple)
+                  outData.data[i + 1] = 92;    // G
+                  outData.data[i + 2] = 246;   // B
+                  outData.data[i + 3] = 100;   // A (translucent)
+              }
+          }
+          ctx.putImageData(outData, 0, 0);
+      }
+  }, [hoveredLayerId, layerImageData, activeTool]);
+
+
+  const generateHoverPreview = useMemo(
+    () => throttle(async (x, y) => {
+      if (!imageData || !settings.showPreview || activeTool !== "wand" || isProcessing) return;
+
+      try {
+        const preview = await floodFill(imageData, x, y, settings);
+        onHoverPreviewChange(preview);
+      } catch (error) {
+        console.error("Preview error:", error);
+        onHoverPreviewChange(null);
+      }
+    }, 100, { leading: true, trailing: false }),
+    [imageData, settings, activeTool, isProcessing, onHoverPreviewChange]
+  );
+
+  // Live tolerance update
+  useEffect(() => {
+    if(activeTool === 'wand') { // Only generate preview for wand tool
+      const rect = interactionCanvasRef.current.getBoundingClientRect();
+      const effectiveScale = canvasScale * canvasZoom;
+      // Recalculate x, y from lastCursorPos.current (which holds image coords)
+      const x = Math.floor(lastCursorPos.current.x);
+      const y = Math.floor(lastCursorPos.current.y);
+      generateHoverPreview(x, y);
+    }
+  }, [settings.tolerance, generateHoverPreview, activeTool, lastCursorPos, canvasScale, canvasZoom]);
+
+
+  // Animate selection overlay and draw lasso paths
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+
+    const ctx = overlay.getContext("2d");
+    let selectionImageData = null;
+    if (selection) {
+      selectionImageData = new ImageData(selection.data, selection.width, selection.height);
+    }
+
+    let isAnimating = true;
+
+    const animate = (time) => {
+      if (!isAnimating) return;
+
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+      if (selectionImageData) {
+        const pulse = (Math.sin(time / 200) + 1) / 2;
+        const alpha = 0.2 + pulse * 0.2;
+
+        const outData = ctx.createImageData(overlay.width, overlay.height);
+        for (let i = 0; i < selectionImageData.data.length; i += 4) {
+          if (selectionImageData.data[i + 3] > 0) {
+              outData.data[i] = 0;
+              outData.data[i + 1] = 217;
+              outData.data[i + 2] = 255;
+              outData.data[i + 3] = Math.round(200 * alpha);
+          }
+        }
+        ctx.putImageData(outData, 0, 0);
+      }
+
+      // Draw lasso V1 path
+      if (activeTool === 'lasso' && isDrawingLasso) {
+        const path = [...lassoNodes, ...lassoPreviewPath];
+        if (path.length > 0) {
+          // Draw nodes with adjustable size
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.lineWidth = 1;
+          lassoNodes.forEach(([x, y]) => {
+            ctx.beginPath();
+            ctx.arc(x, y, settings.nodeSize || 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          });
+
+          // Draw path
+          ctx.strokeStyle = 'rgba(0, 217, 255, 0.9)';
+          ctx.lineWidth = 2;
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(path[0][0], path[0][1]);
+          for (let i = 1; i < path.length; i++) {
+            ctx.lineTo(path[i][0], path[i][1]);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // Draw lasso V2 path
+      if (activeTool === 'lasso-v2' && isDrawingLassoV2) {
+        // Draw trail nodes if enabled
+        if (settings.v2ShowTrail && lassoV2TrailNodes.length > 0) {
+          ctx.strokeStyle = `rgba(139, 92, 246, ${settings.v2TrailOpacity})`;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(lassoV2TrailNodes[0][0], lassoV2TrailNodes[0][1]);
+          for (let i = 1; i < lassoV2TrailNodes.length; i++) {
+            ctx.lineTo(lassoV2TrailNodes[i][0], lassoV2TrailNodes[i][1]);
+          }
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Draw trail node dots
+          ctx.fillStyle = `rgba(139, 92, 246, ${settings.v2TrailOpacity * 0.7})`;
+          lassoV2TrailNodes.forEach(([x, y]) => {
+            ctx.beginPath();
+            ctx.arc(x, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
+
+        // Draw anchor nodes with adjustable size
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.lineWidth = 1;
+        lassoV2Nodes.forEach(([x, y]) => {
+          ctx.beginPath();
+          ctx.arc(x, y, settings.v2NodeSize || 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+
+        // Draw edge-snapped path
+        if (lassoV2PreviewPath.length > 0) {
+          ctx.strokeStyle = 'rgba(0, 255, 150, 0.9)';
+          ctx.lineWidth = 2;
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(lassoV2PreviewPath[0][0], lassoV2PreviewPath[0][1]);
+          for (let i = 1; i < lassoV2PreviewPath.length; i++) {
+            ctx.lineTo(lassoV2PreviewPath[i][0], lassoV2PreviewPath[i][1]);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // Draw lasso V3 path (Pro edition)
+      if (activeTool === 'lasso-v3' && isDrawingLassoV3) {
+        // Draw anchor nodes with adjustable size
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.9)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.lineWidth = 1.5;
+        lassoV3Nodes.forEach(([x, y]) => {
+          ctx.beginPath();
+          ctx.arc(x, y, settings.v3NodeSize || 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+
+        // Draw edge-snapped path
+        if (lassoV3PreviewPath.length > 0) {
+          ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
+          ctx.lineWidth = 2.5;
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.moveTo(lassoV3PreviewPath[0][0], lassoV3PreviewPath[0][1]);
+          for (let i = 1; i < lassoV3PreviewPath.length; i++) {
+            ctx.lineTo(lassoV3PreviewPath[i][0], lassoV3PreviewPath[i][1]);
+          }
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+
+        // Speed indicator
+        if (settings.v3ShowSpeedIndicator && cursorSpeed > 0) {
+          ctx.fillStyle = `rgba(255, 215, 0, ${0.3 + Math.min(cursorSpeed / 500, 1) * 0.4})`;
+          ctx.font = '12px monospace';
+          ctx.fillText(`Speed: ${Math.round(cursorSpeed)} px/s`, 10, 20);
+        }
+      }
+
+      // NEW: Draw lasso V4 path (Smart Auto-Anchor)
+      if (activeTool === 'lasso-v4' && isDrawingLassoV4) {
+        const path = [...lassoV4Nodes, ...lassoV4PreviewPath];
+        if (path.length > 0) {
+          // Draw nodes with smaller adjustable size
+          ctx.fillStyle = 'rgba(0, 255, 200, 0.9)'; // Cyan-green for V4
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.lineWidth = 1;
+          lassoV4Nodes.forEach(([x, y]) => {
+            ctx.beginPath();
+            ctx.arc(x, y, settings.v4NodeSize || 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          });
+
+          // Draw path with subtle glow
+          ctx.strokeStyle = 'rgba(0, 255, 200, 0.9)';
+          ctx.lineWidth = 2;
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.shadowColor = 'rgba(0, 255, 200, 0.3)';
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.moveTo(path[0][0], path[0][1]);
+          for (let i = 1; i < path.length; i++) {
+            ctx.lineTo(path[i][0], path[i][1]);
+          }
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      // NEW: Draw lasso V5 path (Edge-Trail Auto-Anchor)
+      if (activeTool === 'lasso-v5' && isDrawingLassoV5) {
+        const path = [...lassoV5Nodes, ...lassoV5PreviewPath];
+        if (path.length > 0) {
+          // Draw path
+          ctx.strokeStyle = 'rgba(255, 100, 255, 0.9)'; // Magenta for V5
+          ctx.lineWidth = 2;
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.shadowColor = 'rgba(255, 100, 255, 0.4)';
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.moveTo(path[0][0], path[0][1]);
+          for (let i = 1; i < path.length; i++) {
+            ctx.lineTo(path[i][0], path[i][1]);
+          }
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          // Draw anchor nodes
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.lineWidth = 1;
+          lassoV5Nodes.forEach(([x, y]) => {
+            ctx.beginPath();
+            ctx.arc(x, y, settings.v5NodeSize || 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          });
+
+          // Draw edge-trail node (where path leaves edge)
+          if (settings.v5ShowEdgeTrailNode && lassoV5EdgeTrailNode) {
+            const [x, y] = lassoV5EdgeTrailNode;
+            // Pulsing effect
+            const pulse = (Math.sin(time / 150) + 1) / 2;
+            const radius = 6 + pulse * 2;
+
+            // Outer glow
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Main node
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.95)'; // Gold for edge-trail node
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Center dot
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(x, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // NEW: Draw lasso V6 path (Elastic Smooth Anchoring)
+      if (activeTool === 'lasso-v6' && isDrawingLassoV6) {
+        const path = [...lassoV6Nodes, ...lassoV6PreviewPath];
+        if (path.length > 0) {
+          // Draw the fully anchored path (solid)
+          if (lassoV6Nodes.length > 0) {
+            ctx.strokeStyle = 'rgba(100, 255, 150, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.shadowColor = 'rgba(100, 255, 150, 0.4)';
+            ctx.shadowBlur = 6;
+            ctx.beginPath();
+            ctx.moveTo(lassoV6Nodes[0][0], lassoV6Nodes[0][1]);
+            for (let i = 1; i < lassoV6Nodes.length; i++) {
+              ctx.lineTo(lassoV6Nodes[i][0], lassoV6Nodes[i][1]);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+          }
+
+          // Draw the preview path line (before gradient zone)
+          if (lassoV6PreviewPath.length > 0) {
+            ctx.strokeStyle = 'rgba(100, 255, 150, 0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            if (lassoV6Nodes.length > 0) {
+              ctx.moveTo(lassoV6Nodes[lassoV6Nodes.length - 1][0], lassoV6Nodes[lassoV6Nodes.length - 1][1]);
+            } else {
+              ctx.moveTo(lassoV6PreviewPath[0][0], lassoV6PreviewPath[0][1]);
+            }
+            for (let i = 0; i < lassoV6PreviewPath.length; i++) {
+              ctx.lineTo(lassoV6PreviewPath[i][0], lassoV6PreviewPath[i][1]);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+
+          // Draw elastic gradient BEHIND edge-trail node
+          if (settings.v6ShowElasticGradient && lassoV6EdgeTrailNode && lassoV6EdgeTrailIndex > 0) {
+            const gradientLength = Math.min(settings.v6ElasticGradientLength, lassoV6EdgeTrailIndex);
+
+            // Draw gradient nodes BEHIND the edge-trail node
+            for (let i = 0; i < gradientLength; i++) {
+              const nodeIndex = lassoV6EdgeTrailIndex - i - 1; // Count backwards from edge-trail
+              if (nodeIndex < 0 || nodeIndex >= lassoV6PreviewPath.length) continue;
+
+              const [x, y] = lassoV6PreviewPath[nodeIndex];
+
+              // Distance from edge-trail node (0 = at edge-trail, gradientLength-1 = furthest back)
+              const distanceFromEdgeTrail = i;
+
+              // Calculate anchor strength: nodes closer to edge-trail = more anchored
+              // i=0 (closest to edge-trail) -> most anchored (green)
+              // i=gradientLength-1 (furthest) -> least anchored (yellow)
+              const anchorStrength = 1.0 - (distanceFromEdgeTrail / Math.max(1, gradientLength - 1)) * (1.0 - settings.v6ElasticStrength);
+
+              // Size: more anchored = larger
+              const nodeRadius = settings.v6NodeSize * (0.5 + anchorStrength * 0.5);
+              const opacity = 0.4 + anchorStrength * 0.6;
+
+              // Color gradient: green (anchored/close to edge-trail) to yellow (elastic/far from edge-trail)
+              const greenAmount = Math.round(255 * anchorStrength);
+              const redAmount = Math.round(150 + 105 * (1 - anchorStrength));
+
+              ctx.fillStyle = `rgba(${redAmount}, ${greenAmount}, 100, ${opacity})`;
+              ctx.strokeStyle = `rgba(0, 0, 0, ${opacity})`;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(x, y, nodeRadius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+            }
+          }
+
+          // Draw fully anchored nodes
+          ctx.fillStyle = 'rgba(100, 255, 150, 0.9)';
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.lineWidth = 1;
+
+          // Only draw every Nth anchored node to avoid clutter
+          const nodeSkip = Math.max(1, Math.floor(lassoV6Nodes.length / 20));
+          for (let i = 0; i < lassoV6Nodes.length; i += nodeSkip) {
+            const [x, y] = lassoV6Nodes[i];
+            ctx.beginPath();
+            ctx.arc(x, y, settings.v6NodeSize * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+          // Always draw the last anchored node
+          if (lassoV6Nodes.length > 0) {
+            const [x, y] = lassoV6Nodes[lassoV6Nodes.length - 1];
+            ctx.fillStyle = 'rgba(100, 255, 150, 1)';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, settings.v6NodeSize, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+
+          // Draw edge-trail node (forward-only) - Golden node
+          if (settings.v6ShowEdgeTrailNode && lassoV6EdgeTrailNode) {
+            const [x, y] = lassoV6EdgeTrailNode;
+            const pulse = (Math.sin(time / 150) + 1) / 2;
+            const radius = 7 + pulse * 2;
+
+            // Outer glow
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Main node
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.95)';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Center dot
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(x, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw line from last anchored node to edge-trail node
+            if (lassoV6Nodes.length > 0) {
+              const lastAnchor = lassoV6Nodes[lassoV6Nodes.length - 1];
+              ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([3, 3]);
+              ctx.beginPath();
+              ctx.moveTo(lastAnchor[0], lastAnchor[1]);
+              ctx.lineTo(x, y);
+              ctx.stroke();
+              ctx.setLineDash([]);
+            }
+          }
+        }
+      }
+
+      // NEW: Draw lasso V7 path (Ultimate with Progressive Anchoring)
+      if (activeTool === 'lasso-v7' && isDrawingLassoV7) {
+        const allNodes = lassoV7Nodes;
+        if (allNodes.length > 0 || lassoV7PreviewPath.length > 0) {
+          // Draw fully locked nodes (anchor strength >= 1.0)
+          const lockedNodes = allNodes.filter(n => n.strength >= 1.0);
+          if (lockedNodes.length > 0) {
+            ctx.strokeStyle = 'rgba(255, 150, 50, 0.9)';
+            ctx.lineWidth = 2.5;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.shadowColor = 'rgba(255, 150, 50, 0.4)';
+            ctx.shadowBlur = 6;
+            ctx.beginPath();
+            ctx.moveTo(lockedNodes[0].pos[0], lockedNodes[0].pos[1]);
+            for (let i = 1; i < lockedNodes.length; i++) {
+              ctx.lineTo(lockedNodes[i].pos[0], lockedNodes[i].pos[1]);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+          }
+
+          // Draw progressive anchoring nodes (0 < strength < 1.0)
+          if (settings.v7UseProgressiveAnchoring && settings.v7ShowElasticGradient) {
+            const progressiveNodes = allNodes.filter(n => n.strength < 1.0);
+            progressiveNodes.forEach((node, idx) => {
+              const [x, y] = node.pos;
+              const strength = node.strength;
+              
+              // Size and opacity based on anchor strength
+              const nodeRadius = settings.v7NodeSize * (0.4 + strength * 0.6);
+              const opacity = 0.3 + strength * 0.7;
+              
+              // Color: orange (new) → red (anchoring)
+              const redAmount = Math.round(255);
+              const greenAmount = Math.round(150 * (1 - strength));
+              const blueAmount = Math.round(50 * (1 - strength));
+              
+              ctx.fillStyle = `rgba(${redAmount}, ${greenAmount}, ${blueAmount}, ${opacity})`;
+              ctx.strokeStyle = `rgba(0, 0, 0, ${opacity})`;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(x, y, nodeRadius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+            });
+          }
+
+          // Draw preview path
+          if (lassoV7PreviewPath.length > 0) {
+            ctx.strokeStyle = 'rgba(255, 150, 50, 0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            if (allNodes.length > 0) {
+              const lastNode = allNodes[allNodes.length - 1];
+              ctx.moveTo(lastNode.pos[0], lastNode.pos[1]);
+            } else {
+              ctx.moveTo(lassoV7PreviewPath[0][0], lassoV7PreviewPath[0][1]);
+            }
+            for (let i = 0; i < lassoV7PreviewPath.length; i++) {
+              ctx.lineTo(lassoV7PreviewPath[i][0], lassoV7PreviewPath[i][1]);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+
+          // Draw anchor strength indicators
+          const nodeSkip = Math.max(1, Math.floor(lockedNodes.length / 20));
+          for (let i = 0; i < lockedNodes.length; i += nodeSkip) {
+            const [x, y] = lockedNodes[i].pos;
+            ctx.fillStyle = 'rgba(255, 150, 50, 0.9)';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(x, y, settings.v7NodeSize * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+          // Always draw last locked node
+          if (lockedNodes.length > 0) {
+            const [x, y] = lockedNodes[lockedNodes.length - 1].pos;
+            ctx.fillStyle = 'rgba(255, 100, 50, 1)';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, settings.v7NodeSize, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+
+          // Draw edge-trail node
+          if (settings.v7ShowEdgeTrailNode && lassoV7EdgeTrailNode) {
+            const [x, y] = lassoV7EdgeTrailNode;
+            const pulse = (Math.sin(time / 150) + 1) / 2;
+            const radius = 7 + pulse * 2;
+            
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.95)';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(x, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // NEW: Draw lasso V8 path (Directional with Prediction)
+      if (activeTool === 'lasso-v8' && isDrawingLassoV8) {
+        const path = [...lassoV8Nodes, ...lassoV8PreviewPath];
+        if (path.length > 0) {
+          // Draw fully anchored nodes
+          ctx.fillStyle = 'rgba(80, 200, 255, 0.9)'; // Light blue for V8
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.lineWidth = 1;
+          lassoV8Nodes.forEach(([x, y]) => {
+            ctx.beginPath();
+            ctx.arc(x, y, settings.v8NodeSize || 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          });
+
+          // Draw path
+          ctx.strokeStyle = 'rgba(80, 200, 255, 0.9)';
+          ctx.lineWidth = 2;
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.shadowColor = 'rgba(80, 200, 255, 0.4)';
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.moveTo(path[0][0], path[0][1]);
+          for (let i = 1; i < path.length; i++) {
+            ctx.lineTo(path[i][0], path[i][1]);
+          }
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+
+        // Draw prediction zone (if available)
+        if (lassoV8PredictionZone && settings.v8ShowPredictionZone) {
+          ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)'; // Orange
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 2]);
+          ctx.beginPath();
+          ctx.ellipse(
+            lassoV8PredictionZone.x,
+            lassoV8PredictionZone.y,
+            lassoV8PredictionZone.radiusX,
+            lassoV8PredictionZone.radiusY,
+            lassoV8PredictionZone.rotation,
+            0,
+            2 * Math.PI
+          );
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // Draw directional cone (if available)
+        if (lassoV8DirectionalCone && settings.v8ShowDirectionalCone) {
+          ctx.fillStyle = 'rgba(255, 255, 0, 0.1)'; // Yellow, translucent
+          ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(lassoV8DirectionalCone.origin[0], lassoV8DirectionalCone.origin[1]);
+          ctx.lineTo(lassoV8DirectionalCone.p1[0], lassoV8DirectionalCone.p1[1]);
+          ctx.lineTo(lassoV8DirectionalCone.p2[0], lassoV8DirectionalCone.p2[1]);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+
+      // NEW: Draw Edit Mode Path
+      if (activeTool === 'edit' && isInEditMode && editModePath.length > 0) {
+        // Draw path segments
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; // White for the path
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
+        ctx.shadowBlur = 4;
+        ctx.beginPath();
+        ctx.moveTo(editModePath[0][0], editModePath[0][1]);
+        for (let i = 1; i < editModePath.length; i++) {
+          ctx.lineTo(editModePath[i][0], editModePath[i][1]);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Draw nodes
+        editModePath.forEach((node, index) => {
+          const [x, y] = node;
+          const isSelected = index === selectedNodeIndex;
+          const isHovered = index === hoveredNodeIndex;
+
+          let radius = settings.editNodeSize || 6;
+          let fillStyle = 'rgba(80, 200, 255, 0.9)'; // Default node color (light blue)
+          let strokeStyle = 'rgba(0, 0, 0, 0.7)';
+          let lineWidth = 1;
+
+          if (isHovered) {
+            radius *= 1.2;
+            fillStyle = 'rgba(255, 255, 0, 0.9)'; // Yellow when hovered
+            strokeStyle = 'rgba(0, 0, 0, 0.9)';
+            lineWidth = 2;
+          }
+          if (isSelected) {
+            radius *= 1.5;
+            fillStyle = 'rgba(255, 100, 0, 0.9)'; // Orange when selected/dragging
+            strokeStyle = 'rgba(0, 0, 0, 1)';
+            lineWidth = 2.5;
+          }
+
+          ctx.fillStyle = fillStyle;
+          ctx.strokeStyle = strokeStyle;
+          ctx.lineWidth = lineWidth;
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+    
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      isAnimating = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (overlay) {
+        overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
+      }
+    };
+  }, [selection, activeTool, isDrawingLasso, lassoNodes, lassoPreviewPath, isDrawingLassoV2, lassoV2Nodes, lassoV2TrailNodes, lassoV2PreviewPath, settings, isDrawingLassoV3, lassoV3Nodes, lassoV3PreviewPath, cursorSpeed, isDrawingLassoV4, lassoV4Nodes, lassoV4PreviewPath, isDrawingLassoV5, lassoV5Nodes, lassoV5PreviewPath, lassoV5EdgeTrailNode, isDrawingLassoV6, lassoV6Nodes, lassoV6PreviewPath, lassoV6EdgeTrailNode, lassoV6EdgeTrailIndex, isDrawingLassoV7, lassoV7Nodes, lassoV7PreviewPath, lassoV7EdgeTrailNode, isDrawingLassoV8, lassoV8Nodes, lassoV8PreviewPath, lassoV8PredictionZone, lassoV8DirectionalCone, isInEditMode, editModePath, selectedNodeIndex, hoveredNodeIndex]);
+
+  // Draw hover preview - Fast and efficient
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview) return;
+
+    const ctx = preview.getContext("2d");
+    ctx.clearRect(0, 0, preview.width, preview.height);
+
+    if (!hoverPreview || !settings.showPreview) return;
+
+    const outData = ctx.createImageData(preview.width, preview.height);
+    for (let i = 0; i < hoverPreview.data.length; i += 4) {
+      if (hoverPreview.data[i + 3] > 0) {
+        outData.data[i] = 139;   // R
+        outData.data[i + 1] = 92;    // G
+        outData.data[i + 2] = 246;   // B
+        outData.data[i + 3] = 150;   // A
+      }
+    }
+    ctx.putImageData(outData, 0, 0);
+
+  }, [hoverPreview, settings.showPreview]);
+
+  const handleCanvasClick = useCallback(async (e) => {
+    if (e.button === 2) return; // Ignore right-clicks here, handled by panning
+
+    if (!interactionCanvasRef.current || !imageData) return;
+
+    const rect = interactionCanvasRef.current.getBoundingClientRect();
+    const effectiveScale = canvasScale * canvasZoom;
+    const x = Math.floor((e.clientX - rect.left - canvasOffset.x) / effectiveScale); // Updated calculation
+    const y = Math.floor((e.clientY - rect.top - canvasOffset.y) / effectiveScale); // Updated calculation
+
+    if (x < 0 || x >= imageData.width || y < 0 || y >= imageData.height) return;
+
+    // NEW: Handle Edit Mode Clicks
+    if (activeTool === 'edit' && isInEditMode) {
+      // Check if clicking near an existing node to start dragging
+      const nodeClickThreshold = 8; // Pixels
+      const clickedNodeIndex = editModePath.findIndex(node =>
+        Math.hypot(node[0] - x, node[1] - y) < nodeClickThreshold
+      );
+
+      if (clickedNodeIndex !== -1) {
+        setIsDraggingNode(true);
+        setSelectedNodeIndex(clickedNodeIndex);
+        return; // Don't proceed with other tool actions if dragging a node
+      }
+      // If not clicking on a node, maybe add a new node or deselect
+      // For now, we'll just allow dragging existing nodes and not add new ones on click
+      return;
+    }
+
+    if (activeTool === 'move') {
+      onLayerSelect(hoveredLayerId);
+      return;
+    }
+
+    if (activeTool === 'lasso') {
+      if (!isDrawingLasso) {
+        setIsDrawingLasso(true);
+        setLassoNodes([[x, y]]); // Start with the first anchor point
+        setLassoPreviewPath([]);
+        onSelectionChange(null); // Clear previous selection when starting a new lasso
+      } else {
+        // Append the edge-snapped path from the last fixed node to the current clicked point
+        setLassoNodes(prev => [...prev, ...lassoPreviewPath]); // lassoPreviewPath ends at the current mouse position (click position)
+        setLassoPreviewPath([]); // Clear preview as it's now part of the fixed path
+      }
+      return;
+    }
+
+    // New Lasso V2 click handler
+    if (activeTool === 'lasso-v2') {
+      if (!isDrawingLassoV2) {
+        // Start new V2 lasso
+        setIsDrawingLassoV2(true);
+        setLassoV2Nodes([[x, y]]);
+        setLassoV2TrailNodes([[x, y]]); // First trail node is the click point
+        setLassoV2PreviewPath([]);
+        lastNodeDropTime.current = Date.now();
+        lastNodePosition.current = [x, y];
+        onSelectionChange(null);
+      } else {
+        // Add anchor node and reset trail for the new segment
+        setLassoV2Nodes(prev => [...prev, [x, y]]);
+        setLassoV2TrailNodes([[x, y]]); // Start a new trail segment from the new anchor
+        lastNodeDropTime.current = Date.now();
+        lastNodePosition.current = [x, y];
+      }
+      return;
+    }
+
+    // NEW Lasso V3 click handler
+    if (activeTool === 'lasso-v3') {
+      if (!isDrawingLassoV3) {
+        // Start new V3 lasso
+        setIsDrawingLassoV3(true);
+        setLassoV3Nodes([[x, y]]);
+        setLassoV3PreviewPath([]);
+        onSelectionChange(null);
+      } else {
+        // Add anchor node
+        setLassoV3Nodes(prev => [...prev, [x, y]]);
+      }
+      return;
+    }
+
+    // ENHANCED Lasso V4 click handler
+    if (activeTool === 'lasso-v4') {
+      if (!isDrawingLassoV4) {
+        // Start new V4 lasso
+        setIsDrawingLassoV4(true);
+        setLassoV4Nodes([[x, y]]);
+        setLassoV4PreviewPath([]);
+        setLastAutoAnchorCheck({ x, y });
+        lastV4TimeCheck.current = Date.now();
+        v4DistanceSinceLastAnchor.current = 0;
+        onSelectionChange(null);
+      } else {
+        // Add anchor node manually
+        setLassoV4Nodes(prev => [...prev, ...lassoV4PreviewPath]);
+        setLassoV4PreviewPath([]);
+        setLastAutoAnchorCheck({ x, y });
+        lastV4TimeCheck.current = Date.now();
+        v4DistanceSinceLastAnchor.current = 0;
+      }
+      return;
+    }
+
+    // NEW Lasso V5 click handler - places anchor at edge-trail node
+    if (activeTool === 'lasso-v5') {
+      if (!isDrawingLassoV5) {
+        // Start new V5 lasso
+        setIsDrawingLassoV5(true);
+        setLassoV5Nodes([[x, y]]);
+        setLassoV5PreviewPath([]);
+        setLassoV5EdgeTrailNode(null);
+        lastV5AutoAnchorTime.current = Date.now();
+        lastV5AutoAnchorDistance.current = 0;
+        onSelectionChange(null);
+      } else {
+        let segmentToAdd = [];
+        const lastFixedNode = lassoV5Nodes[lassoV5Nodes.length - 1];
+
+        if (lassoV5EdgeTrailNode) {
+          // Find index of edge-trail node in preview path
+          const edgeNodeInPreview = lassoV5PreviewPath.findIndex(
+            ([px, py]) => Math.round(px) === Math.round(lassoV5EdgeTrailNode[0]) && Math.round(py) === Math.round(lassoV5EdgeTrailNode[1])
+          );
+          if (edgeNodeInPreview !== -1) {
+            segmentToAdd = lassoV5PreviewPath.slice(0, edgeNodeInPreview + 1);
+          } else {
+            // Fallback, if edge-trail node not explicitly found in preview (should be rare)
+            segmentToAdd = lassoV5PreviewPath;
+          }
+        } else {
+          // If no edge-trail node (path is entirely off-edge or straight), fix the path up to the cursor.
+          segmentToAdd = lassoV5PreviewPath;
+        }
+
+        // Avoid adding the start point of the segment if it's already the last fixed node
+        const actualSegment = (segmentToAdd.length > 0 && lastFixedNode[0] === segmentToAdd[0][0] && lastFixedNode[1] === segmentToAdd[0][1])
+            ? segmentToAdd.slice(1)
+            : segmentToAdd;
+
+        if (actualSegment.length > 0) {
+          setLassoV5Nodes(prev => [...prev, ...actualSegment]);
+        }
+
+        setLassoV5PreviewPath([]);
+        setLassoV5EdgeTrailNode(null);
+        lastV5AutoAnchorTime.current = Date.now();
+        lastV5AutoAnchorDistance.current = 0;
+      }
+      return;
+    }
+
+    // NEW Lasso V6 click handler - places anchor at edge-trail node
+    if (activeTool === 'lasso-v6') {
+      if (!isDrawingLassoV6) {
+        setIsDrawingLassoV6(true);
+        setLassoV6Nodes([[x, y]]);
+        setLassoV6PreviewPath([]);
+        setLassoV6EdgeTrailNode(null);
+        setLassoV6EdgeTrailIndex(0);
+        lastV6AnchoredDistance.current = 0;
+        onSelectionChange(null);
+      } else {
+        // If there's an edge trail node, anchor all path up to it
+        // Otherwise, anchor the whole preview path
+        const segmentEndIndex = lassoV6EdgeTrailNode ? lassoV6EdgeTrailIndex : lassoV6PreviewPath.length - 1;
+
+        if (segmentEndIndex >= 0) {
+          const segmentToAdd = lassoV6PreviewPath.slice(0, segmentEndIndex + 1);
+          if (segmentToAdd.length > 0) {
+            setLassoV6Nodes(prev => [...prev, ...segmentToAdd]);
+          }
+        }
+
+        setLassoV6PreviewPath([]);
+        setLassoV6EdgeTrailNode(null);
+        setLassoV6EdgeTrailIndex(0);
+        lastV6AnchoredDistance.current = 0; // Reset for the next segment
+      }
+      return;
+    }
+
+    // NEW Lasso V7 click handler - progressive anchoring system
+    if (activeTool === 'lasso-v7') {
+      if (!isDrawingLassoV7) {
+        setIsDrawingLassoV7(true);
+        setLassoV7Nodes([{ pos: [x, y], strength: 1.0 }]); // First node is fully locked
+        setLassoV7PreviewPath([]);
+        setLassoV7EdgeTrailNode(null);
+        setLassoV7EdgeTrailIndex(0);
+        setV7UndoBuffer([]);
+        lastV7NodeDropTime.current = Date.now();
+        lastV7NodeDropPos.current = [x, y];
+        onSelectionChange(null);
+      } else {
+        // Manual anchor at edge-trail or cursor
+        const anchorPoint = lassoV7EdgeTrailNode || [x, y];
+        const edgeNodeInPreview = lassoV7EdgeTrailNode ? 
+          lassoV7PreviewPath.findIndex(([px, py]) => 
+            Math.round(px) === Math.round(anchorPoint[0]) && 
+            Math.round(py) === Math.round(anchorPoint[1])
+          ) : lassoV7PreviewPath.length - 1;
+        
+        const segmentToAdd = edgeNodeInPreview !== -1 ? 
+          lassoV7PreviewPath.slice(0, edgeNodeInPreview + 1) : 
+          lassoV7PreviewPath;
+        
+        if (segmentToAdd.length > 0) {
+          // Add all segment nodes as fully locked
+          const newNodes = segmentToAdd.map(pos => ({ pos, strength: 1.0 }));
+          setLassoV7Nodes(prev => [...prev, ...newNodes]);
+        }
+        
+        setLassoV7PreviewPath([]);
+        setLassoV7EdgeTrailNode(null);
+        setLassoV7EdgeTrailIndex(0);
+        lastV7NodeDropTime.current = Date.now(); // FIXED: Changed from Date.255()
+        lastV7NodeDropPos.current = anchorPoint;
+      }
+      return;
+    }
+
+    // NEW Lasso V8 click handler - Directional with Prediction
+    if (activeTool === 'lasso-v8') {
+      if (!isDrawingLassoV8) {
+        setIsDrawingLassoV8(true);
+        setLassoV8Nodes([[x, y]]);
+        setLassoV8PreviewPath([]);
+        setLassoV8PredictionZone(null);
+        setLassoV8DirectionalCone(null);
+        lastV8AnchorTime.current = Date.now();
+        onSelectionChange(null);
+      } else {
+        // Anchor the current preview path segment
+        setLassoV8Nodes(prev => [...prev, ...lassoV8PreviewPath]);
+        setLassoV8PreviewPath([]);
+        setLassoV8PredictionZone(null);
+        setLassoV8DirectionalCone(null);
+        lastV8AnchorTime.current = Date.now();
+      }
+      return;
+    }
+
+    if (activeTool !== "wand" || isProcessing) return;
+
+    setIsProcessing(true);
+    onHoverPreviewChange(null);
+    try {
+      const mask = await floodFill(imageData, x, y, settings);
+
+      if (e.shiftKey && selection) {
+        // Add to existing selection
+        const newSelectionData = new Uint8ClampedArray(selection.data);
+        for (let i = 0; i < mask.data.length; i += 4) {
+          if (mask.data[i + 3] > 0) { // If the pixel in the new mask is opaque
+            newSelectionData[i + 3] = 255; // Set the corresponding pixel in the new selection to opaque
+          }
+        }
+        onSelectionChange(new ImageData(newSelectionData, selection.width, selection.height));
+      } else {
+        // Create new selection (Ctrl+Click or first click)
+        onSelectionChange(mask);
+      }
+
+    } catch (error) {
+      console.error("Segmentation error:", error);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [activeTool, imageData, isProcessing, settings, canvasScale, canvasZoom, onSelectionChange, onHoverPreviewChange, selection, hoveredLayerId, onLayerSelect, isDrawingLasso, lassoPreviewPath, isDrawingLassoV2, isDrawingLassoV3, isDrawingLassoV4, lassoV4PreviewPath, isDrawingLassoV5, lassoV5PreviewPath, lassoV5EdgeTrailNode, lassoV5Nodes, isDrawingLassoV6, lassoV6PreviewPath, lassoV6EdgeTrailNode, isDrawingLassoV7, lassoV7PreviewPath, lassoV7EdgeTrailNode, lassoV7Nodes, isDrawingLassoV8, canvasOffset, isInEditMode, editModePath, setIsDraggingNode, setSelectedNodeIndex]);
+
+  // NEW: Double-click handler for V4 to auto-complete
+  const handleCanvasDoubleClick = useCallback(async (e) => {
+    if (activeTool !== 'lasso-v4' || !isDrawingLassoV4 || !imageData) return;
+
+    const rect = interactionCanvasRef.current.getBoundingClientRect();
+    const effectiveScale = canvasScale * canvasZoom;
+    const x = Math.floor((e.clientX - rect.left - canvasOffset.x) / effectiveScale); // Updated calculation
+    const y = Math.floor((e.clientY - rect.top - canvasOffset.y) / effectiveScale); // Updated calculation
+
+    // Ensure there's at least one node to start
+    if (lassoV4Nodes.length === 0) {
+      // If no nodes, start a new lasso and then immediately try to close it.
+      // This case might be tricky for double click.
+      // For simplicity, we can just return or treat it as a single click if no path.
+      return;
+    }
+
+    // Complete the path
+    const currentNodes = [...lassoV4Nodes, ...lassoV4PreviewPath];
+    const firstNode = currentNodes[0];
+    const lastPoint = currentNodes[currentNodes.length - 1];
+
+    const closingPath = findEdgePathV4(lastPoint, firstNode, edgeMap, imageData.width, imageData.height, settings);
+    const finalPath = [...currentNodes, ...closingPath];
+
+    const epsilon = Math.max(0.1, (1 - settings.v4PathFineness) * 10);
+    const simplified = simplifyPath(finalPath, epsilon);
+
+    const selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+
+    // Create layer automatically with the selection
+    if (image && selectionMask) {
+      // Create mask data URL
+      const maskCanvas = document.createElement("canvas");
+      maskCanvas.width = image.width;
+      maskCanvas.height = image.height;
+      const maskCtx = maskCanvas.getContext("2d");
+      maskCtx.putImageData(selectionMask, 0, 0);
+      const maskDataUrl = maskCanvas.toDataURL();
+
+      // Create image data URL (actual segmented content)
+      const imageCanvas = document.createElement("canvas");
+      imageCanvas.width = image.width;
+      imageCanvas.height = image.height;
+      const imageCtx = imageCanvas.getContext("2d");
+      imageCtx.drawImage(image, 0, 0);
+      imageCtx.globalCompositeOperation = 'destination-in';
+      imageCtx.drawImage(maskCanvas, 0, 0);
+      const imageDataUrl = imageCanvas.toDataURL();
+
+      await Layer.create({
+        name: `V4 Lasso ${new Date().toLocaleTimeString()}`,
+        imageData: imageDataUrl,
+        maskData: maskDataUrl,
+        visible: true,
+        opacity: 1,
+        order: Date.now(),
+      });
+    }
+
+    // Set selection and clear lasso
+    onSelectionChange(selectionMask);
+    setIsDrawingLassoV4(false);
+    setLassoV4Nodes([]);
+    setLassoV4PreviewPath([]);
+    setLastAutoAnchorCheck({ x: 0, y: 0 });
+    v4DistanceSinceLastAnchor.current = 0;
+  }, [activeTool, isDrawingLassoV4, lassoV4Nodes, lassoV4PreviewPath, imageData, canvasScale, canvasZoom, edgeMap, settings, onSelectionChange, image, canvasOffset]);
+
+  const drawWithBrush = useCallback((e) => {
+    const interactionCanvas = interactionCanvasRef.current;
+    if (!interactionCanvas || !imageData) return; // Ensure imageData is available for dimensions
+
+    const rect = interactionCanvas.getBoundingClientRect();
+    const effectiveScale = canvasScale * canvasZoom;
+    const x = Math.floor((e.clientX - rect.left - canvasOffset.x) / effectiveScale); // Updated calculation
+    const y = Math.floor((e.clientY - rect.top - canvasOffset.y) / effectiveScale); // Updated calculation
+
+    const isErasing = e.altKey;
+
+    onSelectionChange(currentSelection => {
+      // If no current selection, create an empty one with the image dimensions
+      let baseSelection = currentSelection;
+      if (!baseSelection) {
+        // Create a transparent ImageData based on the original image dimensions
+        const emptyData = new Uint8ClampedArray(imageData.width * imageData.height * 4);
+        baseSelection = new ImageData(emptyData, imageData.width, imageData.height);
+      }
+
+      // Create a mutable copy of the selection data
+      const newSelectionData = new Uint8ClampedArray(baseSelection.data);
+      const newSelection = new ImageData(newSelectionData, baseSelection.width, baseSelection.height);
+
+      const brushRadius = settings.brushSize;
+
+      // Draw a circle
+      for (let i = -brushRadius; i <= brushRadius; i++) {
+        for (let j = -brushRadius; j <= brushRadius; j++) {
+          // Check if pixel is within the circle's radius
+          if (i * i + j * j <= brushRadius * brushRadius) {
+            const pixelX = x + i;
+            const pixelY = y + j;
+
+            // Ensure pixel is within canvas bounds
+            if (pixelX >= 0 && pixelX < newSelection.width && pixelY >= 0 && pixelY < newSelection.height) {
+              const index = (pixelY * newSelection.width + pixelX) * 4;
+              // Set alpha channel based on erasing or drawing
+              newSelection.data[index + 3] = isErasing ? 0 : 255;
+            }
+          }
+        }
+      }
+      return newSelection;
+    });
+
+  }, [canvasScale, canvasZoom, settings.brushSize, onSelectionChange, imageData, canvasOffset]);
+
+  const handleMouseDown = useCallback((e) => {
+    if (e.button === 2) { // Right mouse button
+      e.preventDefault();
+      setIsRightMouseDown(true);
+      setIsPanning(true);
+      panStartPos.current = {
+        x: e.clientX - canvasOffset.x,
+        y: e.clientY - canvasOffset.y
+      };
+      return;
+    }
+
+    if (activeTool === 'brush') {
+      setIsDrawing(true);
+      drawWithBrush(e);
+    }
+  }, [activeTool, drawWithBrush, canvasOffset]);
+
+  const handleMouseUp = useCallback((e) => {
+    if (e.button === 2) {
+      setIsRightMouseDown(false);
+      setIsPanning(false);
+      return;
+    }
+
+    if (activeTool === 'brush') {
+      setIsDrawing(false);
+    }
+    
+    // NEW: Stop dragging node in edit mode
+    if (activeTool === 'edit' && isDraggingNode) {
+      setIsDraggingNode(false);
+      setSelectedNodeIndex(null);
+    }
+  }, [activeTool, isDraggingNode, setIsDraggingNode, setSelectedNodeIndex]);
+
+  // Helper function to smooth path around a dragged node
+  const smoothPathAroundNode = (path, nodeIndex, radius) => {
+    const newPath = [...path];
+    const pathLength = path.length;
+    
+    // Iterate over a window around the dragged node
+    for (let i = Math.max(1, nodeIndex - radius); i <= Math.min(pathLength - 2, nodeIndex + radius); i++) {
+      if (i === nodeIndex) continue; // Don't smooth the dragged node itself
+      
+      const prev = newPath[i - 1]; // Use newPath for potentially already smoothed points
+      const next = newPath[i + 1];
+      const current = newPath[i];
+      
+      // Simple local averaging for elastic interpolation
+      // t is a tension/interpolation factor. A value of 0.5 means a direct average.
+      const t = 0.5; // Can be a setting, e.g., settings.editSmoothTension
+      
+      newPath[i] = [
+        current[0] * (1 - t) + (prev[0] + next[0]) * t / 2,
+        current[1] * (1 - t) + (prev[1] + next[1]) * t / 2
+      ];
+    }
+    
+    return newPath;
+  };
+
+  const handleMouseMove = useCallback((e) => {
+    if (!interactionCanvasRef.current || !imageData) return;
+
+    const interactionCanvas = interactionCanvasRef.current;
+    const rect = interactionCanvas.getBoundingClientRect();
+    
+    // Store screen cursor position for custom cursor (SEPARATE from canvas coordinates)
+    screenCursorPos.current = { x: e.clientX, y: e.clientY };
+    
+    // Calculate image coordinates accounting for pan and zoom
+    const canvasX = (e.clientX - rect.left - canvasOffset.x) / canvasZoom;
+    const canvasY = (e.clientY - rect.top - canvasOffset.y) / canvasZoom;
+    
+    // Convert to image coordinates
+    const x = Math.floor(canvasX / canvasScale);
+    const y = Math.floor(canvasY / canvasScale);
+
+    // Handle panning with right mouse button - STATE UPDATE ONLY
+    if (isPanning && isRightMouseDown) {
+      const newOffsetX = e.clientX - panStartPos.current.x;
+      const newOffsetY = e.clientY - panStartPos.current.y;
+      setCanvasOffset({ x: newOffsetX, y: newOffsetY });
+      return;
+    }
+
+    // NEW: Handle edit mode node dragging
+    if (activeTool === 'edit' && isInEditMode && isDraggingNode && selectedNodeIndex !== null) {
+      // Create a new array for immutability
+      const newPath = [...editModePath];
+      newPath[selectedNodeIndex] = [x, y];
+      
+      // Smooth the path around the dragged node using elastic interpolation
+      const smoothRadius = settings.editSmoothRadius || 3; // Use setting if available, else default to 3
+      const smoothedPath = smoothPathAroundNode(newPath, selectedNodeIndex, smoothRadius);
+      setEditModePath(smoothedPath);
+      onCursorMove({ x, y }); // Still report cursor position for general UI if needed
+      return;
+    }
+
+    // Calculate cursor speed for V3
+    const now = Date.now();
+    const dt = (now - lastMouseTime.current) / 1000; // seconds
+    if (dt > 0) {
+      const dist = Math.hypot(x - lastMousePosition.current[0], y - lastMousePosition.current[1]);
+      const speed = dist / dt; // pixels per second
+      setCursorSpeed(speed);
+      lastMouseTime.current = now;
+      lastMousePosition.current = [x, y];
+    }
+
+    lastCursorPos.current = { x, y };
+    onCursorMove({ x, y });
+
+    if (isDrawing && activeTool === 'brush') {
+      drawWithBrush(e);
+      return;
+    }
+
+    if (activeTool === 'lasso' && isDrawingLasso && lassoNodes.length > 0) {
+        const lastNode = lassoNodes[lassoNodes.length - 1];
+        const path = findEdgePath(lastNode, [x, y], edgeMap, imageData.width, imageData.height, settings);
+        setLassoPreviewPath(path);
+        return;
+    }
+
+    // Lasso V2 mouse move handler
+    if (activeTool === 'lasso-v2' && isDrawingLassoV2) {
+      if (lassoV2Nodes.length === 0) return; // Should not happen if isDrawingLassoV2 is true
+
+      const currentTime = Date.now();
+      const timeSinceLastDrop = currentTime - lastNodeDropTime.current;
+      const distanceFromLastNode = lastNodePosition.current
+        ? Math.hypot(x - lastNodePosition.current[0], y - lastNodePosition.current[1])
+        : 0;
+
+      // Drop new trail node if conditions are met
+      if (
+        (timeSinceLastDrop >= settings.v2NodeDropInterval && distanceFromLastNode >= settings.v2MinNodeDistance) ||
+        distanceFromLastNode >= settings.v2MaxNodeDistance
+      ) {
+        setLassoV2TrailNodes(prev => [...prev, [x, y]]);
+        lastNodeDropTime.current = currentTime;
+        lastNodePosition.current = [x, y];
+      }
+
+      // Compute edge-snapped path from the last anchor, through trail nodes, to current mouse
+      let pathSegments = [];
+      const pointsToConnect = [
+        lassoV2Nodes[lassoV2Nodes.length - 1], // Start from the last fixed anchor
+        ...lassoV2TrailNodes,                  // Go through all dropped trail points
+        [x, y]                                 // End at the current mouse position
+      ];
+
+      for (let i = 0; i < pointsToConnect.length - 1; i++) {
+        const segmentPath = findEdgePathV2(
+          pointsToConnect[i],
+          pointsToConnect[i + 1],
+          edgeMap,
+          imageData.width,
+          imageData.height,
+          settings
+        );
+        if (segmentPath.length > 0) {
+          // Avoid duplicate points when concatenating segments
+          if (pathSegments.length > 0 && pathSegments[pathSegments.length - 1][0] === segmentPath[0][0] && pathSegments[pathSegments.length - 1][1] === segmentPath[0][1]) {
+            pathSegments.push(...segmentPath.slice(1));
+          } else {
+            pathSegments.push(...segmentPath);
+          }
+        }
+      }
+
+      setLassoV2PreviewPath(pathSegments);
+      return;
+    }
+
+    // NEW Lasso V3 mouse move handler (PRO)
+    if (activeTool === 'lasso-v3' && isDrawingLassoV3) {
+      if (lassoV3Nodes.length === 0) return;
+
+      const lastNode = lassoV3Nodes[lassoV3Nodes.length - 1];
+      const previewPath = findEdgePathV3(lastNode, [x, y], processedEdgeMap || edgeMap, imageData.width, imageData.height, settings, cursorSpeed);
+
+      // Build full path from all anchors
+      let fullPath = [];
+      for (let i = 0; i < lassoV3Nodes.length - 1; i++) {
+        const segment = findEdgePathV3(lassoV3Nodes[i], lassoV3Nodes[i + 1], processedEdgeMap || edgeMap, imageData.width, imageData.height, settings, 0);
+        // Ensure segments connect without duplicate points
+        if (fullPath.length > 0 && segment.length > 0 && fullPath[fullPath.length - 1][0] === segment[0][0] && fullPath[fullPath.length - 1][1] === segment[0][1]) {
+          fullPath = fullPath.concat(segment.slice(1));
+        } else {
+          fullPath = fullPath.concat(segment);
+        }
+      }
+
+      // Append the current live preview path
+      if (fullPath.length > 0 && previewPath.length > 0 && fullPath[fullPath.length - 1][0] === previewPath[0][0] && fullPath[fullPath.length - 1][1] === previewPath[0][1]) {
+        fullPath = fullPath.concat(previewPath.slice(1));
+      } else {
+        fullPath = fullPath.concat(previewPath);
+      }
+
+      setLassoV3PreviewPath(fullPath);
+      return;
+    }
+
+    // ENHANCED Lasso V4 mouse move handler with timing and hybrid modes
+    if (activeTool === 'lasso-v4' && isDrawingLassoV4) {
+      if (lassoV4Nodes.length === 0) return;
+
+      const lastNode = lassoV4Nodes[lassoV4Nodes.length - 1];
+      let currentPreviewPath = findEdgePathV4(lastNode, [x, y], edgeMap, imageData.width, imageData.height, settings);
+
+      // Track distance moved
+      const distFromLastCheck = Math.hypot(x - lastAutoAnchorCheck.x, y - lastAutoAnchorCheck.y);
+      v4DistanceSinceLastAnchor.current += Math.hypot(
+        x - lastMousePosition.current[0],
+        y - lastMousePosition.current[1]
+      );
+
+      // Check for auto-anchoring based on mode
+      if (settings.v4AutoAnchor) {
+        const currentTime = Date.now();
+        const timeSinceLastAnchor = currentTime - lastV4TimeCheck.current;
+        const distanceThreshold = settings.v4AutoAnchorDistance;
+        const timeThreshold = settings.v4TimeInterval;
+        const minMovement = settings.v4MinCursorMovement || 0;
+        const minDistForTime = settings.v4MinDistanceForTime || 0;
+
+        let shouldDropAnchor = false;
+
+        if (settings.v4AutoAnchorMode === 'distance') {
+          // Distance-only mode
+          shouldDropAnchor = distFromLastCheck >= distanceThreshold && v4DistanceSinceLastAnchor.current >= minMovement;
+        } else if (settings.v4AutoAnchorMode === 'time') {
+          // Time-only mode
+          shouldDropAnchor = timeSinceLastAnchor >= timeThreshold && v4DistanceSinceLastAnchor.current >= minDistForTime;
+        } else if (settings.v4AutoAnchorMode === 'hybrid') {
+          // Hybrid mode: drop if EITHER condition is met (with minimum movement)
+          const distanceCondition = distFromLastCheck >= distanceThreshold && v4DistanceSinceLastAnchor.current >= minMovement;
+          const timeCondition = timeSinceLastAnchor >= timeThreshold && v4DistanceSinceLastAnchor.current >= minDistForTime;
+          shouldDropAnchor = distanceCondition || timeCondition;
+        }
+
+        if (shouldDropAnchor) {
+          // Calculate anchor position
+          const pathLength = calculatePathLength(currentPreviewPath);
+          const targetDistance = pathLength * settings.v4AutoAnchorPosition;
+          const autoAnchorPoint = getPointAtDistance(currentPreviewPath, targetDistance);
+
+          // Add the auto-anchor
+          const segmentToAdd = findEdgePathV4(lastNode, autoAnchorPoint, edgeMap, imageData.width, imageData.height, settings);
+          // Avoid duplicate start point if segmentToAdd starts with lastNode
+          const actualSegment = (segmentToAdd.length > 0 && lastNode[0] === segmentToAdd[0][0] && lastNode[1] === segmentToAdd[0][1])
+            ? segmentToAdd.slice(1)
+            : segmentToAdd;
+
+          if (actualSegment.length > 0) {
+            setLassoV4Nodes(prev => [...prev, ...actualSegment]);
+          }
+          setLastAutoAnchorCheck({ x: Math.round(autoAnchorPoint[0]), y: Math.round(autoAnchorPoint[1]) });
+          lastV4TimeCheck.current = currentTime;
+          v4DistanceSinceLastAnchor.current = 0;
+
+          // Recalculate preview from new anchor
+          currentPreviewPath = autoAnchorPoint ? findEdgePathV4(autoAnchorPoint, [x, y], edgeMap, imageData.width, imageData.height, settings) : [];
+        }
+      }
+
+      setLassoV4PreviewPath(currentPreviewPath);
+      return;
+    }
+
+    // NEW Lasso V5 mouse move handler (Edge-Trail Auto-Anchor)
+    if (activeTool === 'lasso-v5' && isDrawingLassoV5) {
+      if (lassoV5Nodes.length === 0) return;
+
+      const lastNode = lassoV5Nodes[lassoV5Nodes.length - 1];
+      const previewPath = findEdgePathV5(lastNode, [x, y], edgeMap, imageData.width, imageData.height, settings);
+
+      setLassoV5PreviewPath(previewPath);
+
+      // Find edge-trail node
+      const edgeTrailNode = findEdgeTrailNode(previewPath, edgeMap, imageData.width, settings);
+      setLassoV5EdgeTrailNode(edgeTrailNode);
+
+      // Check for auto-anchoring
+      if (settings.v5AutoAnchor) {
+        const currentTime = Date.now();
+        const timeSinceLastAnchor = currentTime - lastV5AutoAnchorTime.current;
+        const distFromLastAnchor = Math.hypot(x - lastNode[0], y - lastNode[1]); // Fixed, was y - lastNode[1]
+
+        lastV5AutoAnchorDistance.current += Math.hypot(
+          x - lastCursorPos.current.x,
+          y - lastCursorPos.current.y
+        );
+
+        const shouldAutoAnchor =
+          (timeSinceLastAnchor >= settings.v5AutoAnchorInterval &&
+           lastV5AutoAnchorDistance.current >= settings.v5MinAnchorDistance) ||
+          distFromLastAnchor >= settings.v5MaxAnchorDistance;
+
+        if (shouldAutoAnchor && previewPath.length > 0) {
+          // Place auto-anchor at specified position along path (default 50%)
+          const pathLength = calculatePathLength(previewPath);
+          const targetDistance = pathLength * settings.v5AnchorPosition;
+          const autoAnchorPoint = getPointAtDistance(previewPath, targetDistance);
+
+          // Find path segment up to auto-anchor point
+          let segmentToAdd = [];
+          if (autoAnchorPoint) {
+            const autoAnchorIndex = previewPath.findIndex(
+              ([px, py]) => Math.round(px) === Math.round(autoAnchorPoint[0]) && Math.round(py) === Math.round(autoAnchorPoint[1])
+            );
+            if (autoAnchorIndex !== -1) {
+              segmentToAdd = previewPath.slice(0, autoAnchorIndex + 1);
+            } else {
+              // Fallback, if auto-anchor point not explicitly found in preview (e.g., fractional distance)
+              segmentToAdd = findEdgePathV5(lastNode, autoAnchorPoint, edgeMap, imageData.width, imageData.height, settings);
+            }
+          }
+
+          // Avoid adding the start point of the segment if it's already the last fixed node
+          const actualSegment = (segmentToAdd.length > 0 && lastNode[0] === segmentToAdd[0][0] && lastNode[1] === segmentToAdd[0][1])
+            ? segmentToAdd.slice(1)
+            : segmentToAdd;
+
+          if (actualSegment.length > 0) {
+            setLassoV5Nodes(prev => [...prev, ...actualSegment]);
+          }
+          lastV5AutoAnchorTime.current = currentTime;
+          lastV5AutoAnchorDistance.current = 0;
+
+          // Recalculate preview from new anchor to current mouse position
+          const newPreview = autoAnchorPoint ? findEdgePathV5(autoAnchorPoint, [x, y], edgeMap, imageData.width, imageData.height, settings) : [];
+          setLassoV5PreviewPath(newPreview);
+          const newEdgeTrailNode = findEdgeTrailNode(newPreview, edgeMap, imageData.width, settings);
+          setLassoV5EdgeTrailNode(newEdgeTrailNode);
+        }
+      }
+
+      return;
+    }
+
+    // NEW Lasso V6 mouse move handler (Smooth Elastic Anchoring)
+    if (activeTool === 'lasso-v6' && isDrawingLassoV6) {
+      if (lassoV6Nodes.length === 0) return;
+
+      const lastNode = lassoV6Nodes[lassoV6Nodes.length - 1];
+      const previewPath = findEdgePathV6(lastNode, [x, y], edgeMap, imageData.width, imageData.height, settings);
+
+      setLassoV6PreviewPath(previewPath);
+
+      // Find edge-trail node (forward-only, with magnetic pull toward cursor)
+      const { node: edgeTrailNode, index: edgeTrailIndex } = findEdgeTrailNodeV6(
+        previewPath,
+        edgeMap,
+        imageData.width,
+        settings,
+        lassoV6EdgeTrailIndex,
+        [x, y] // Pass cursor position for magnetic mode
+      );
+      setLassoV6EdgeTrailNode(edgeTrailNode);
+      setLassoV6EdgeTrailIndex(edgeTrailIndex);
+
+      // Smooth continuous anchoring - anchor nodes UP TO edge-trail node
+      if (settings.v6AutoAnchor && edgeTrailIndex > 0) {
+        // Anchor all nodes from start of preview up to edge-trail node
+        const nodesToAnchor = previewPath.slice(0, edgeTrailIndex);
+        const remainingPreview = previewPath.slice(edgeTrailIndex);
+
+        if (nodesToAnchor.length > 0) {
+          setLassoV6Nodes(prev => [...prev, ...nodesToAnchor]);
+          setLassoV6PreviewPath(remainingPreview);
+
+          // Recalculate edge-trail node for remaining preview
+          if (remainingPreview.length > 0) {
+            const { node: newEdgeTrailNode, index: newEdgeTrailIndex } = findEdgeTrailNodeV6(
+              remainingPreview,
+              edgeMap,
+              imageData.width,
+              settings,
+              0, // Reset index for new preview
+              [x, y]
+            );
+            setLassoV6EdgeTrailNode(newEdgeTrailNode);
+            setLassoV6EdgeTrailIndex(newEdgeTrailIndex);
+          } else {
+              setLassoV6EdgeTrailNode(null); // No preview path left
+              setLassoV6EdgeTrailIndex(0);
+          }
+        }
+      }
+
+      return;
+    }
+
+    // NEW Lasso V7 mouse move handler (Ultimate Progressive Anchoring) - FIXED EDGE FOLLOWING
+    if (activeTool === 'lasso-v7' && isDrawingLassoV7) {
+      if (lassoV7Nodes.length === 0) return;
+
+      const timeSinceScroll = Date.now() - lastV7ScrollTime.current;
+      if (settings.v7ScrollUndoEnabled && timeSinceScroll < settings.v7ScrollFreezeTime) {
+        return;
+      }
+
+      const lastNode = lassoV7Nodes[lassoV7Nodes.length - 1];
+      // FIXED: Pure edge following for preview path (no anchoring here)
+      const previewPath = findEdgePath(lastNode.pos, [x, y], edgeMap, imageData.width, imageData.height, {
+        snapRadius: settings.v7SnapRadius,
+        cursorInfluence: 0.05, // Very low - pure edge following
+      });
+      
+      setLassoV7PreviewPath(previewPath);
+      
+      // Calculate live edge quality
+      if (previewPath.length > 0) {
+        const midPoint = previewPath[Math.floor(previewPath.length / 2)];
+        const edgeQuality = calculateEdgeQuality(midPoint, edgeMap, imageData.width, imageData.height);
+        const cursorInfluence = calculateCursorInfluence(edgeQuality, settings);
+        setV7LiveEdgeQuality(edgeQuality);
+        setV7LiveCursorInfluence(cursorInfluence);
+      }
+      
+      // Find edge-trail node
+      const { node: edgeTrailNode, index: edgeTrailIndex } = findEdgeTrailNodeV7(
+        previewPath, 
+        edgeMap, 
+        imageData.width, 
+        settings,
+        lassoV7EdgeTrailIndex,
+        [x, y]
+      );
+      setLassoV7EdgeTrailNode(edgeTrailNode);
+      setLassoV7EdgeTrailIndex(edgeTrailIndex);
+      
+      // Progressive anchoring - FIXED: Only anchor nodes FAR BEHIND, keep front elastic
+      if (settings.v7AutoAnchor && previewPath.length > 10) { // Need substantial path
+        const currentTime = Date.now();
+        const timeSinceLast = currentTime - lastV7NodeDropTime.current;
+        const distSinceLast = lastV7NodeDropPos.current ? 
+          Math.hypot(x - lastV7NodeDropPos.current[0], y - lastV7NodeDropPos.current[1]) : 0;
+        
+        if (shouldDropNode(timeSinceLast, distSinceLast, settings)) {
+          // FIXED: Drop at 20% of path (further back) - keep 80% elastic in front
+          const dropPointIndex = Math.max(1, Math.min(
+            Math.floor(previewPath.length * 0.2), 
+            previewPath.length - 5 // Always keep at least 5 points elastic in front
+          ));
+          const newNodePos = previewPath[dropPointIndex];
+          
+          const newNode = { 
+            pos: newNodePos, 
+            strength: 0.01 // Very weak
+          };
+          
+          // FIXED: Only strengthen nodes that are VERY old (age > gradientLength)
+          const updatedNodes = lassoV7Nodes.map((node, i) => {
+            if (node.strength >= 1.0) return node; // Already locked
+            
+            const age = lassoV7Nodes.length - i;
+            
+            // Only strengthen if BEYOND gradient length (much further back)
+            if (age > settings.v7ElasticGradientLength * 1.5) {
+              return { ...node, strength: 1.0 }; // Lock it
+            } else if (age > settings.v7ElasticGradientLength) {
+              // In transition zone
+              const transitionProgress = (age - settings.v7ElasticGradientLength) / (settings.v7ElasticGradientLength * 0.5);
+              const newStrength = node.strength + (1.0 - node.strength) * transitionProgress * 0.1;
+              return { ...node, strength: Math.min(1.0, newStrength) };
+            } else {
+              // In elastic zone - stay weak
+              return node;
+            }
+          });
+          
+          setLassoV7Nodes([...updatedNodes, newNode]);
+          lastV7NodeDropTime.current = currentTime;
+          lastV7NodeDropPos.current = newNodePos;
+          
+          // Keep most of preview elastic
+          const remainingPreview = previewPath.slice(dropPointIndex);
+          setLassoV7PreviewPath(remainingPreview);
+          setLassoV7EdgeTrailNode(null);
+          setLassoV7EdgeTrailIndex(0);
+        }
+      }
+      
+      return;
+    }
+
+    // NEW Lasso V8 mouse move handler (Directional with Prediction)
+    if (activeTool === 'lasso-v8' && isDrawingLassoV8) {
+      if (lassoV8Nodes.length === 0) return;
+
+      const lastNode = lassoV8Nodes[lassoV8Nodes.length - 1];
+      
+      // Predict path and generate preview
+      // This is a placeholder for the actual findEdgePathV8 logic
+      const previewPath = findEdgePath(lastNode, [x, y], edgeMap, imageData.width, imageData.height, {
+        snapRadius: settings.v8SnapRadius,
+        cursorInfluence: settings.v8CursorInfluence,
+      });
+
+      setLassoV8PreviewPath(previewPath);
+
+      // Placeholder for prediction zone and directional cone calculation
+      // These would be functions in utils/lasso.js that take path, settings, cursor, etc.
+      // For now, we'll just set them to null or mock values
+      setLassoV8PredictionZone(null); 
+      setLassoV8DirectionalCone(null);
+
+      // Check for auto-anchoring (based on distance, time, or predicted stability)
+      if (settings.v8AutoAnchor) {
+        const currentTime = Date.now();
+        const timeSinceLastAnchor = currentTime - lastV8AnchorTime.current;
+        const distSinceLastAnchor = Math.hypot(x - lastNode[0], y - lastNode[1]);
+
+        const shouldAutoAnchor = 
+          (timeSinceLastAnchor >= settings.v8AutoAnchorInterval && distSinceLastAnchor >= settings.v8MinAnchorDistance) ||
+          distSinceLastAnchor >= settings.v8MaxAnchorDistance;
+        
+        if (shouldAutoAnchor && previewPath.length > 0) {
+          const autoAnchorPoint = previewPath[Math.min(
+            Math.floor(previewPath.length * settings.v8AutoAnchorPosition), 
+            previewPath.length - 1
+          )];
+
+          const segmentToAdd = findEdgePath(lastNode, autoAnchorPoint, edgeMap, imageData.width, imageData.height, {
+            snapRadius: settings.v8SnapRadius,
+            cursorInfluence: settings.v8CursorInfluence,
+          });
+
+          const actualSegment = (segmentToAdd.length > 0 && lastNode[0] === segmentToAdd[0][0] && lastNode[1] === segmentToAdd[0][1])
+            ? segmentToAdd.slice(1)
+            : segmentToAdd;
+          
+          if (actualSegment.length > 0) {
+            setLassoV8Nodes(prev => [...prev, ...actualSegment]);
+          }
+          lastV8AnchorTime.current = currentTime;
+          
+          // Recalculate preview from new anchor
+          const newPreview = autoAnchorPoint ? findEdgePath(autoAnchorPoint, [x, y], edgeMap, imageData.width, imageData.height, {
+            snapRadius: settings.v8SnapRadius,
+            cursorInfluence: settings.v8CursorInfluence,
+          }) : [];
+          setLassoV8PreviewPath(newPreview);
+        }
+      }
+      return;
+    }
+
+    // NEW: Handle hover for edit mode
+    if (activeTool === 'edit' && isInEditMode && !isDraggingNode) {
+      const nodeHoverThreshold = 8; // Pixels
+      const hoverIndex = editModePath.findIndex(node =>
+        Math.hypot(node[0] - x, node[1] - y) < nodeHoverThreshold
+      );
+      setHoveredNodeIndex(hoverIndex !== -1 ? hoverIndex : null);
+    } else {
+      setHoveredNodeIndex(null); // Clear hovered node if not in edit mode or dragging
+    }
+
+
+    if (x < 0 || x >= imageData.width || y < 0 || y >= imageData.height) {
+      onHoverPreviewChange(null);
+      onLayerHover(null);
+      if (activeTool === 'lasso' && isDrawingLasso) {
+          setLassoPreviewPath([]);
+      }
+      if (activeTool === 'lasso-v2' && isDrawingLassoV2) {
+          setLassoV2PreviewPath([]);
+      }
+      if (activeTool === 'lasso-v3' && isDrawingLassoV3) {
+          setLassoV3PreviewPath([]);
+      }
+      if (activeTool === 'lasso-v4' && isDrawingLassoV4) {
+          setLassoV4PreviewPath([]);
+      }
+      if (activeTool === 'lasso-v5' && isDrawingLassoV5) {
+          setLassoV5PreviewPath([]);
+          setLassoV5EdgeTrailNode(null);
+      }
+      if (activeTool === 'lasso-v6' && isDrawingLassoV6) {
+          setLassoV6PreviewPath([]);
+          setLassoV6EdgeTrailNode(null);
+          setLassoV6EdgeTrailIndex(0);
+      }
+      if (activeTool === 'lasso-v7' && isDrawingLassoV7) {
+          setLassoV7PreviewPath([]);
+          setLassoV7EdgeTrailNode(null);
+          setLassoV7EdgeTrailIndex(0);
+      }
+      if (activeTool === 'lasso-v8' && isDrawingLassoV8) {
+          setLassoV8PreviewPath([]);
+          setLassoV8PredictionZone(null);
+          setLassoV8DirectionalCone(null);
+      }
+      return;
+    }
+
+    // Layer hover detection for 'move' tool
+    if (activeTool === 'move') {
+      let foundLayer = null;
+      // Iterate backwards to find topmost layer at the cursor position
+      for (let i = layers.length - 1; i >= 0; i--) {
+        const layer = layers[i];
+        if (!layer.visible) continue; // Skip invisible layers
+        const mask = layerImageData[layer.id];
+        if (mask) {
+          const idx = (y * mask.width + x) * 4;
+          // Check if the pixel is within bounds of the mask data array
+          if (idx + 3 < mask.data.length && mask.data[idx + 3] > 0) {
+            foundLayer = layer.id;
+            break; // Found the topmost layer
+          }
+        }
+      }
+      onLayerHover(foundLayer);
+      onHoverPreviewChange(null); // No wand preview for move tool
+    } else if (activeTool === "wand" && settings.showPreview && !isProcessing) {
+      generateHoverPreview(x, y);
+      onLayerHover(null); // No layer hover for wand tool
+    } else {
+      onHoverPreviewChange(null); // Clear preview for other tools
+      onLayerHover(null); // Clear layer hover for other tools
+    }
+  }, [onCursorMove, activeTool, generateHoverPreview, canvasScale, canvasZoom, isProcessing, imageData, onHoverPreviewChange, isDrawing, drawWithBrush, layers, layerImageData, onLayerHover, isDrawingLasso, lassoNodes, edgeMap, settings, isDrawingLassoV2, lassoV2Nodes, lassoV2TrailNodes, isDrawingLassoV3, lassoV3Nodes, processedEdgeMap, cursorSpeed, isDrawingLassoV4, lassoV4Nodes, lassoV4PreviewPath, lastAutoAnchorCheck, isDrawingLassoV5, lassoV5Nodes, isPanning, isRightMouseDown, lassoV6EdgeTrailIndex, isDrawingLassoV6, lassoV6Nodes, lassoV6PreviewPath, lassoV6EdgeTrailNode, panStartPos, canvasOffset, isDrawingLassoV7, lassoV7Nodes, lassoV7PreviewPath, lassoV7EdgeTrailIndex, isDrawingLassoV8, lassoV8Nodes, lassoV8PredictionZone, lassoV8DirectionalCone, isInEditMode, isDraggingNode, selectedNodeIndex, editModePath, hoveredNodeIndex, smoothPathAroundNode]);
+
+  // Handle mouse wheel for scroll interactions - FIXED ZOOM TO CURSOR
+  const handleWheel = useCallback((e) => {
+    if (!imageData || !interactionCanvasRef.current) return;
+
+    // Right-click + scroll = zoom TO CURSOR
+    if (isRightMouseDown) {
+      e.preventDefault();
+      const startTime = performance.now();
+      
+      const delta = -Math.sign(e.deltaY) * 0.15; // Faster zoom
+      const newZoom = parseFloat(Math.max(0.1, Math.min(5, canvasZoom + delta)).toFixed(2));
+
+      // Get mouse position in VIEWPORT coordinates (relative to canvas element)
+      const rect = interactionCanvasRef.current.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Calculate point in IMAGE coordinates (before zoom)
+      const imageX = (mouseX - canvasOffset.x) / canvasZoom;
+      const imageY = (mouseY - canvasOffset.y) / canvasZoom;
+
+      // Calculate new offset so image point under mouse stays fixed
+      const newOffsetX = mouseX - imageX * newZoom;
+      const newOffsetY = mouseY - imageY * newZoom;
+
+      // Direct DOM update for smooth zoom
+      const canvases = [
+        canvasRef.current,
+        overlayRef.current,
+        previewRef.current,
+        layersRef.current,
+        hoverLayerRef.current,
+        interactionCanvasRef.current
+      ];
+      canvases.forEach(canvas => {
+        if (canvas) {
+          canvas.style.transform = `translate(${newOffsetX}px, ${newOffsetY}px) scale(${newZoom})`;
+        }
+      });
+
+      setCanvasZoom(newZoom);
+      setCanvasOffset({ x: newOffsetX, y: newOffsetY });
+      onCanvasZoomChange?.(newZoom);
+      
+      const endTime = performance.now();
+      setZoomLag(endTime - startTime);
+      return;
+    }
+
+    // V7 Scroll Undo/Redo - remove/add nodes
+    if (activeTool === 'lasso-v7' && isDrawingLassoV7 && settings.v7ScrollUndoEnabled) {
+      e.preventDefault();
+      const scrollDirection = -Math.sign(e.deltaY); // Positive = scroll up, negative = scroll down
+      
+      lastV7ScrollTime.current = Date.now(); // Start freeze period
+      
+      if (scrollDirection < 0 && lassoV7Nodes.length > 1) {
+        // Scroll down: remove last node
+        const removed = lassoV7Nodes[lassoV7Nodes.length - 1];
+        setV7UndoBuffer(prev => [...prev, removed]);
+        setLassoV7Nodes(prev => prev.slice(0, -1));
+      } else if (scrollDirection > 0 && v7UndoBuffer.length > 0) {
+        // Scroll up: restore last removed node
+        const restore = v7UndoBuffer[v7UndoBuffer.length - 1];
+        setV7UndoBuffer(prev => prev.slice(0, -1));
+        setLassoV7Nodes(prev => [...prev, restore]);
+      }
+      return;
+    }
+
+    // Scroll adjustments based on tool
+    if (activeTool === 'wand' && settings.scrollAdjustsWand === 'tolerance') {
+      e.preventDefault();
+      const delta = -Math.sign(e.deltaY) * 2;
+      const newTolerance = Math.max(0, Math.min(100, settings.tolerance + delta));
+      onSettingsChange?.({ ...settings, tolerance: newTolerance });
+
+      // Regenerate preview with new tolerance
+      const rect = interactionCanvasRef.current.getBoundingClientRect();
+      const effectiveScale = canvasScale * canvasZoom;
+      const x = Math.floor((e.clientX - rect.left - canvasOffset.x) / effectiveScale); // Updated calculation
+      const y = Math.floor((e.clientY - rect.top - canvasOffset.y) / effectiveScale); // Updated calculation
+      if (x >= 0 && x < imageData.width && y >= 0 && y < imageData.height) {
+        generateHoverPreview(x, y);
+      }
+    } else if (activeTool.startsWith('lasso') && settings.scrollAdjustsLasso) {
+      e.preventDefault();
+      const delta = -Math.sign(e.deltaY) * 0.05; // Adjust fineness by 5%
+
+      if (settings.scrollAdjustsLasso === 'pathFineness') {
+        const keyMap = {
+          'lasso': 'pathFineness',
+          'lasso-v2': 'v2CurveSmoothing',
+          'lasso-v3': 'v3PathQuality',
+          'lasso-v4': 'v4PathFineness',
+          'lasso-v5': 'v5PathFineness',
+          'lasso-v6': 'v6PathFineness',
+          'lasso-v7': 'v7PathFineness',
+          'lasso-v8': 'v8PathFineness',
+        };
+        const key = keyMap[activeTool];
+        if (key) {
+          const currentValue = settings[key];
+          const newValue = parseFloat(Math.max(0.05, Math.min(1, currentValue + delta)).toFixed(2)); // min 5% fineness, round
+          onSettingsChange?.({ ...settings, [key]: newValue });
+        }
+      }
+    }
+  }, [activeTool, settings, onSettingsChange, isRightMouseDown, imageData, canvasScale, canvasZoom, generateHoverPreview, onCanvasZoomChange, canvasOffset, isDrawingLassoV7, lassoV7Nodes, v7UndoBuffer]);
+
+  const handleMouseLeave = useCallback(() => {
+    onHoverPreviewChange(null);
+    setIsDrawing(false); // Stop drawing if mouse leaves while dragging
+    onLayerHover(null); // Clear layer hover when mouse leaves
+    if (activeTool === 'lasso' && isDrawingLasso) {
+      setLassoPreviewPath([]); // Clear lasso preview path on mouse leave
+    }
+    if (activeTool === 'lasso-v2' && isDrawingLassoV2) {
+      setLassoV2PreviewPath([]); // Clear lasso V2 preview path on mouse leave
+    }
+    if (activeTool === 'lasso-v3' && isDrawingLassoV3) {
+      setLassoV3PreviewPath([]); // Clear lasso V3 preview path on mouse leave
+    }
+    if (activeTool === 'lasso-v4' && isDrawingLassoV4) {
+      setLassoV4PreviewPath([]); // Clear lasso V4 preview path on mouse leave
+    }
+    if (activeTool === 'lasso-v5' && isDrawingLassoV5) {
+      setLassoV5PreviewPath([]); // Clear lasso V5 preview path on mouse leave
+      setLassoV5EdgeTrailNode(null);
+    }
+    if (activeTool === 'lasso-v6' && isDrawingLassoV6) {
+      setLassoV6PreviewPath([]); // Clear lasso V6 preview path on mouse leave
+      setLassoV6EdgeTrailNode(null);
+      setLassoV6EdgeTrailIndex(0);
+    }
+    if (activeTool === 'lasso-v7' && isDrawingLassoV7) {
+      setLassoV7PreviewPath([]);
+      setLassoV7EdgeTrailNode(null);
+      setLassoV7EdgeTrailIndex(0);
+      setV7UndoBuffer([]);
+    }
+    if (activeTool === 'lasso-v8' && isDrawingLassoV8) {
+      setLassoV8PreviewPath([]);
+      setLassoV8PredictionZone(null);
+      setLassoV8DirectionalCone(null);
+    }
+    // NEW: Clear edit mode hover/drag state on mouse leave
+    if (activeTool === 'edit' && isInEditMode) {
+      setIsDraggingNode(false);
+      setSelectedNodeIndex(null);
+      setHoveredNodeIndex(null);
+    }
+  }, [onHoverPreviewChange, onLayerHover, activeTool, isDrawingLasso, isDrawingLassoV2, isDrawingLassoV3, isDrawingLassoV4, isDrawingLassoV5, isDrawingLassoV6, isDrawingLassoV7, isDrawingLassoV8, isInEditMode]);
+
+  const getCursorClass = () => {
+    if (isPanning) return 'cursor-grabbing';
+    if (activeTool === 'wand') return 'cursor-crosshair';
+    if (activeTool === 'brush') return 'cursor-none'; // Custom cursor for brush
+    if (activeTool === 'pan') return 'cursor-grab';
+    // Lasso tools use node cursor (handled separately)
+    if (activeTool.startsWith('lasso')) return 'cursor-none';
+    if (activeTool === 'edit') {
+      if (isDraggingNode) return 'cursor-grabbing';
+      if (hoveredNodeIndex !== null) return 'cursor-pointer'; // Custom node hover cursor
+      return 'cursor-default';
+    }
+    if (activeTool === 'move') {
+        return hoveredLayerId ? 'cursor-pointer' : 'cursor-default'; // Pointer if hovering a layer, else default
+    }
+    return 'cursor-default';
+  }
+
+  // Handle key presses for all lasso versions
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (activeTool === 'lasso' && isDrawingLasso) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (lassoNodes.length > 0) { // Need at least one node to form a path
+            const fullPath = [...lassoNodes, ...lassoPreviewPath]; // lassoNodes contains segments, lassoPreviewPath is the final live segment
+
+            // Close the path by connecting the last point to the first anchor
+            const firstNode = lassoNodes[0];
+            const lastPointOfPath = fullPath[fullPath.length - 1]; // This is the current mouse position
+            const closingPath = findEdgePath(lastPointOfPath, firstNode, edgeMap, imageData.width, imageData.height, settings);
+            const finalPath = [...fullPath, ...closingPath];
+
+            // Epsilon for simplification: 0.1 (finest) to 10 (coarsest)
+            // `settings.pathFineness` from 0 (coarse) to 1 (fine)
+            const epsilon = Math.max(0.1, (1 - settings.pathFineness) * 10);
+            const simplified = simplifyPath(finalPath, epsilon);
+
+            const selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+            onSelectionChange(selectionMask);
+          }
+          // Reset lasso state
+          setIsDrawingLasso(false);
+          setLassoNodes([]);
+          setLassoPreviewPath([]);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          // Reset lasso state
+          setIsDrawingLasso(false);
+          setLassoNodes([]);
+          setLassoPreviewPath([]);
+        }
+      }
+
+      // Lasso V2 key handlers
+      if (activeTool === 'lasso-v2' && isDrawingLassoV2) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (lassoV2Nodes.length > 0 && lassoV2PreviewPath.length > 0) {
+            const currentFullPath = lassoV2PreviewPath; // This contains the path from last anchor through trail to current cursor
+            const firstNode = lassoV2Nodes[0];
+            const lastPointOfCurrentPath = currentFullPath[currentFullPath.length - 1];
+
+            // Close the path by connecting the last point to the first anchor
+            const closingPath = findEdgePathV2(lastPointOfCurrentPath, firstNode, edgeMap, imageData.width, imageData.height, settings);
+            const finalPath = [...currentFullPath, ...closingPath];
+
+            // Simplify based on curve smoothing setting
+            // `settings.v2CurveSmoothing` from 0 (coarse) to 1 (fine)
+            const epsilon = Math.max(0.1, (1 - settings.v2CurveSmoothing) * 10);
+            const simplified = simplifyPath(finalPath, epsilon);
+
+            const selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+            onSelectionChange(selectionMask);
+          }
+          setIsDrawingLassoV2(false);
+          setLassoV2Nodes([]);
+          setLassoV2TrailNodes([]);
+          setLassoV2PreviewPath([]);
+          lastNodeDropTime.current = 0;
+          lastNodePosition.current = null;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsDrawingLassoV2(false);
+          setLassoV2Nodes([]);
+          setLassoV2TrailNodes([]);
+          setLassoV2PreviewPath([]);
+          lastNodeDropTime.current = 0;
+          lastNodePosition.current = null;
+        }
+      }
+
+      // NEW Lasso V3 key handlers (PRO)
+      if (activeTool === 'lasso-v3' && isDrawingLassoV3) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (lassoV3Nodes.length > 0 && lassoV3PreviewPath.length > 0) {
+            const currentFullPath = lassoV3PreviewPath;
+            const firstNode = lassoV3Nodes[0];
+            const lastPoint = currentFullPath[currentFullPath.length - 1];
+
+            // Use bidirectional closing if enabled
+            let closingPath;
+            if (settings.v3UseBidirectionalClose) {
+              closingPath = bidirectionalClose(lastPoint, firstNode, processedEdgeMap || edgeMap, imageData.width, imageData.height, settings);
+            } else {
+              closingPath = findEdgePathV3(lastPoint, firstNode, processedEdgeMap || edgeMap, imageData.width, imageData.height, settings, 0);
+            }
+
+            const finalPath = [...currentFullPath, ...closingPath];
+
+            // Path optimization based on quality setting
+            const epsilon = Math.max(0.1, (1 - settings.v3PathQuality) * 10);
+            const simplified = simplifyPath(finalPath, epsilon);
+
+            // Generate selection with optional anti-aliasing
+            let selectionMask;
+            if (settings.v3AntiAlias) {
+              selectionMask = pathToSelectionAA(simplified, imageData.width, imageData.height, settings.v3FeatherRadius);
+            } else {
+              selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+            }
+
+            onSelectionChange(selectionMask);
+          }
+          setIsDrawingLassoV3(false);
+          setLassoV3Nodes([]);
+          setLassoV3PreviewPath([]);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsDrawingLassoV3(false);
+          setLassoV3Nodes([]);
+          setLassoV3PreviewPath([]);
+        }
+      }
+
+      // ENHANCED Lasso V4 key handlers with backspace support
+      if (activeTool === 'lasso-v4' && isDrawingLassoV4) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (lassoV4Nodes.length > 0) {
+            // First, make sure all current preview path is fixed
+            const currentNodes = [...lassoV4Nodes, ...lassoV4PreviewPath];
+
+            const firstNode = currentNodes[0];
+            const lastPoint = currentNodes[currentNodes.length - 1]; // Current mouse position or last auto-anchored point
+
+            const closingPath = findEdgePathV4(lastPoint, firstNode, edgeMap, imageData.width, imageData.height, settings);
+
+            // Combine fixed nodes, live preview, and closing path
+            const finalPath = [...currentNodes, ...closingPath];
+
+            const epsilon = Math.max(0.1, (1 - settings.v4PathFineness) * 10);
+            const simplified = simplifyPath(finalPath, epsilon);
+
+            const selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+            onSelectionChange(selectionMask);
+          }
+          setIsDrawingLassoV4(false);
+          setLassoV4Nodes([]);
+          setLassoV4PreviewPath([]);
+          setLastAutoAnchorCheck({ x: 0, y: 0 });
+          v4DistanceSinceLastAnchor.current = 0;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsDrawingLassoV4(false);
+          setLassoV4Nodes([]);
+          setLassoV4PreviewPath([]);
+          setLastAutoAnchorCheck({ x: 0, y: 0 });
+          v4DistanceSinceLastAnchor.current = 0;
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          // Undo last anchor - find the last manually placed anchor
+          if (lassoV4Nodes.length > 1) {
+            // A simple approach: remove last 20% of nodes or minimum 5 nodes
+            const removeCount = Math.max(5, Math.floor(lassoV4Nodes.length * 0.2));
+            const newNodes = lassoV4Nodes.slice(0, -removeCount);
+
+            if (newNodes.length > 0) {
+              setLassoV4Nodes(newNodes);
+              const lastNode = newNodes[newNodes.length - 1];
+              setLastAutoAnchorCheck({ x: Math.round(lastNode[0]), y: Math.round(lastNode[1]) });
+              lastV4TimeCheck.current = Date.now();
+              v4DistanceSinceLastAnchor.current = 0;
+            } else {
+              // If removing makes it empty, effectively cancel
+              setIsDrawingLassoV4(false);
+              setLassoV4Nodes([]);
+              setLassoV4PreviewPath([]);
+              setLastAutoAnchorCheck({ x: 0, y: 0 });
+              v4DistanceSinceLastAnchor.current = 0;
+            }
+          } else if (lassoV4Nodes.length === 1) {
+            // Only starting node left, cancel the lasso
+            setIsDrawingLassoV4(false);
+            setLassoV4Nodes([]);
+            setLassoV4PreviewPath([]);
+            setLastAutoAnchorCheck({ x: 0, y: 0 });
+            v4DistanceSinceLastAnchor.current = 0;
+          }
+        }
+      }
+
+      // NEW Lasso V5 key handlers
+      if (activeTool === 'lasso-v5' && isDrawingLassoV5) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (lassoV5Nodes.length > 0) {
+            const currentNodes = [...lassoV5Nodes, ...lassoV5PreviewPath];
+            const firstNode = currentNodes[0];
+            const lastPoint = currentNodes[currentNodes.length - 1];
+
+            const closingPath = findEdgePathV5(lastPoint, firstNode, edgeMap, imageData.width, imageData.height, settings);
+            const finalPath = [...currentNodes, ...closingPath];
+
+            const epsilon = Math.max(0.1, (1 - settings.v5PathFineness) * 10);
+            const simplified = simplifyPath(finalPath, epsilon);
+
+            const selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+            onSelectionChange(selectionMask);
+          }
+          setIsDrawingLassoV5(false);
+          setLassoV5Nodes([]);
+          setLassoV5PreviewPath([]);
+          setLassoV5EdgeTrailNode(null);
+          lastV5AutoAnchorDistance.current = 0;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsDrawingLassoV5(false);
+          setLassoV5Nodes([]);
+          setLassoV5PreviewPath([]);
+          setLassoV5EdgeTrailNode(null);
+          lastV5AutoAnchorDistance.current = 0;
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          if (lassoV5Nodes.length > 1) {
+            const removeCount = Math.max(5, Math.floor(lassoV5Nodes.length * 0.2));
+            const newNodes = lassoV5Nodes.slice(0, -removeCount);
+
+            if (newNodes.length > 0) {
+              setLassoV5Nodes(newNodes);
+              lastV5AutoAnchorTime.current = Date.now();
+              lastV5AutoAnchorDistance.current = 0;
+            }
+          } else if (lassoV5Nodes.length === 1) {
+            setIsDrawingLassoV5(false);
+            setLassoV5Nodes([]);
+            setLassoV5PreviewPath([]);
+            setLassoV5EdgeTrailNode(null);
+            lastV5AutoAnchorDistance.current = 0;
+          }
+        }
+      }
+
+      // NEW Lasso V6 key handlers
+      if (activeTool === 'lasso-v6' && isDrawingLassoV6) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (lassoV6Nodes.length > 0) {
+            const currentNodes = [...lassoV6Nodes, ...lassoV6PreviewPath];
+            const firstNode = currentNodes[0];
+            const lastPoint = currentNodes[currentNodes.length - 1];
+
+            const closingPath = findEdgePathV6(lastPoint, firstNode, edgeMap, imageData.width, imageData.height, settings);
+            const finalPath = [...currentNodes, ...closingPath];
+
+            const epsilon = Math.max(0.1, (1 - settings.v6PathFineness) * 10);
+            const simplified = simplifyPath(finalPath, epsilon);
+
+            const selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+            onSelectionChange(selectionMask);
+          }
+          setIsDrawingLassoV6(false);
+          setLassoV6Nodes([]);
+          setLassoV6PreviewPath([]);
+          setLassoV6EdgeTrailNode(null);
+          setLassoV6EdgeTrailIndex(0);
+          lastV6AnchoredDistance.current = 0;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsDrawingLassoV6(false);
+          setLassoV6Nodes([]);
+          setLassoV6PreviewPath([]);
+          setLassoV6EdgeTrailNode(null);
+          setLassoV6EdgeTrailIndex(0);
+          lastV6AnchoredDistance.current = 0;
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          if (lassoV6Nodes.length > 1) {
+            // Remove a segment of nodes, e.g., last 20% or min 5 nodes
+            const removeCount = Math.max(5, Math.floor(lassoV6Nodes.length * 0.2));
+            const newNodes = lassoV6Nodes.slice(0, -removeCount);
+
+            if (newNodes.length > 0) {
+              setLassoV6Nodes(newNodes);
+              lastV6AnchoredDistance.current = 0; // Reset accumulated distance
+            }
+          } else if (lassoV6Nodes.length === 1) {
+            setIsDrawingLassoV6(false);
+            setLassoV6Nodes([]);
+            setLassoV6PreviewPath([]);
+            setLassoV6EdgeTrailNode(null);
+            setLassoV6EdgeTrailIndex(0);
+            lastV6AnchoredDistance.current = 0;
+          }
+        }
+      }
+
+      // NEW Lasso V7 key handlers
+      if (activeTool === 'lasso-v7' && isDrawingLassoV7) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (lassoV7Nodes.length > 0) {
+            const allPositions = [
+              ...lassoV7Nodes.map(n => n.pos),
+              ...lassoV7PreviewPath
+            ];
+            const firstNode = allPositions[0];
+            const lastPoint = allPositions[allPositions.length - 1];
+            
+            const closingPath = findEdgePath(lastPoint, firstNode, edgeMap, imageData.width, imageData.height, {
+              snapRadius: settings.v7SnapRadius,
+              cursorInfluence: settings.v7CursorInfluence,
+            });
+            const finalPath = [...allPositions, ...closingPath];
+            
+            const epsilon = Math.max(0.1, (1 - settings.v7PathFineness) * 10);
+            const simplified = simplifyPath(finalPath, epsilon);
+            
+            const selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+            onSelectionChange(selectionMask);
+          }
+          setIsDrawingLassoV7(false);
+          setLassoV7Nodes([]);
+          setLassoV7PreviewPath([]);
+          setLassoV7EdgeTrailNode(null);
+          setLassoV7EdgeTrailIndex(0);
+          setV7UndoBuffer([]);
+          lastV7NodeDropTime.current = 0;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsDrawingLassoV7(false);
+          setLassoV7Nodes([]);
+          setLassoV7PreviewPath([]);
+          setLassoV7EdgeTrailNode(null);
+          setLassoV7EdgeTrailIndex(0);
+          setV7UndoBuffer([]);
+          lastV7NodeDropTime.current = 0;
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          if (lassoV7Nodes.length > 1) {
+            const removed = lassoV7Nodes[lassoV7Nodes.length - 1];
+            setV7UndoBuffer(prev => [...prev, removed]);
+            setLassoV7Nodes(prev => prev.slice(0, -1));
+          }
+        }
+      }
+
+      // NEW Lasso V8 key handlers
+      if (activeTool === 'lasso-v8' && isDrawingLassoV8) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (lassoV8Nodes.length > 0) {
+            const currentNodes = [...lassoV8Nodes, ...lassoV8PreviewPath];
+            const firstNode = currentNodes[0];
+            const lastPoint = currentNodes[currentNodes.length - 1];
+
+            // Use generic findEdgePath for closing for now
+            const closingPath = findEdgePath(lastPoint, firstNode, edgeMap, imageData.width, imageData.height, {
+              snapRadius: settings.v8SnapRadius,
+              cursorInfluence: settings.v8CursorInfluence,
+            });
+            const finalPath = [...currentNodes, ...closingPath];
+
+            const epsilon = Math.max(0.1, (1 - settings.v8PathFineness) * 10);
+            const simplified = simplifyPath(finalPath, epsilon);
+
+            const selectionMask = pathToSelection(simplified, imageData.width, imageData.height);
+            onSelectionChange(selectionMask);
+          }
+          setIsDrawingLassoV8(false);
+          setLassoV8Nodes([]);
+          setLassoV8PreviewPath([]);
+          setLassoV8PredictionZone(null);
+          setLassoV8DirectionalCone(null);
+          lastV8AnchorTime.current = 0;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsDrawingLassoV8(false);
+          setLassoV8Nodes([]);
+          setLassoV8PreviewPath([]);
+          setLassoV8PredictionZone(null);
+          setLassoV8DirectionalCone(null);
+          lastV8AnchorTime.current = 0;
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          if (lassoV8Nodes.length > 1) {
+            // Remove a segment of nodes, e.g., last 20% or min 5 nodes
+            const removeCount = Math.max(5, Math.floor(lassoV8Nodes.length * 0.2));
+            const newNodes = lassoV8Nodes.slice(0, -removeCount);
+
+            if (newNodes.length > 0) {
+              setLassoV8Nodes(newNodes);
+              lastV8AnchorTime.current = Date.now(); // Reset anchor time
+            }
+          } else if (lassoV8Nodes.length === 1) {
+            setIsDrawingLassoV8(false);
+            setLassoV8Nodes([]);
+            setLassoV8PreviewPath([]);
+            setLassoV8PredictionZone(null);
+            setLassoV8DirectionalCone(null);
+            lastV8AnchorTime.current = 0;
+          }
+        }
+      }
+    };
+
+    // Prevent context menu on right-click
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    interactionCanvasRef.current?.addEventListener('contextmenu', handleContextMenu);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      interactionCanvasRef.current?.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, [activeTool, isDrawingLasso, lassoNodes, lassoPreviewPath, edgeMap, imageData, settings, onSelectionChange, isDrawingLassoV2, lassoV2Nodes, lassoV2TrailNodes, lassoV2PreviewPath, isDrawingLassoV3, lassoV3Nodes, lassoV3PreviewPath, processedEdgeMap, isDrawingLassoV4, lassoV4Nodes, lassoV4PreviewPath, isDrawingLassoV5, lassoV5Nodes, lassoV5PreviewPath, isDrawingLassoV6, lassoV6Nodes, lassoV6PreviewPath, isDrawingLassoV7, lassoV7Nodes, lassoV7PreviewPath, v7UndoBuffer, isDrawingLassoV8, lassoV8Nodes, lassoV8PreviewPath]);
+
+  return (
+    <div 
+      ref={containerRef}
+      className="w-full h-full flex items-start justify-center p-5 bg-grid overflow-hidden"
+    >
+      <div className="relative flex items-center justify-center shadow-2xl">
+        {/* Base Image Canvas (non-interactive) */}
+        <canvas
+          ref={canvasRef}
+          className="absolute top-0 left-0 bg-transparent"
+          style={{ imageRendering: "pixelated" }}
+        />
+
+        {/* Layers Canvas (renders all visible layers) */}
+        <canvas
+          ref={layersRef}
+          className="absolute top-0 left-0 pointer-events-none"
+          style={{ imageRendering: "pixelated" }}
+        />
+
+        {/* Selection Overlay Canvas (for animated selection outlines and lasso path) */}
+        <canvas
+          ref={overlayRef}
+          className="absolute top-0 left-0 pointer-events-none"
+          style={{ imageRendering: "pixelated" }}
+        />
+
+        {/* Preview Canvas (for magic wand hover preview) */}
+        <canvas
+          ref={previewRef}
+          className="absolute top-0 left-0 pointer-events-none"
+          style={{ imageRendering: "pixelated" }}
+        />
+
+        {/* Hover Layer Highlight Canvas (for move tool) */}
+        <canvas
+          ref={hoverLayerRef}
+          className="absolute top-0 left-0 pointer-events-none"
+          style={{ imageRendering: "pixelated" }}
+        />
+
+        {/* Interaction Canvas - must be on top to capture all events */}
+        <canvas
+          ref={interactionCanvasRef}
+          onClick={handleCanvasClick}
+          onDoubleClick={handleCanvasDoubleClick}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onWheel={handleWheel}
+          className={`relative bg-transparent transition-opacity duration-300 ${getCursorClass()} ${isProcessing ? "opacity-50" : ""}`}
+          style={{ imageRendering: "pixelated" }}
+        />
+        
+        {/* Custom Lasso Node Cursor - FIXED: Using screen coordinates */}
+        {activeTool.startsWith('lasso') && !isPanning && (
+          <div 
+            className="fixed rounded-full border-2 border-cyan-400 bg-cyan-400/20 pointer-events-none z-[9999]"
+            style={{ 
+              left: `${screenCursorPos.current.x}px`,
+              top: `${screenCursorPos.current.y}px`,
+              width: `${
+                activeTool === 'lasso' ? settings.snapRadius * 2 :
+                activeTool === 'lasso-v2' ? settings.snapRadius * 2 :
+                activeTool === 'lasso-v3' ? settings.snapRadius * 2 :
+                activeTool === 'lasso-v4' ? settings.v4SnapRadius * 2 :
+                activeTool === 'lasso-v5' ? settings.v5SnapRadius * 2 :
+                activeTool === 'lasso-v6' ? settings.v6SnapRadius * 2 :
+                activeTool === 'lasso-v7' ? settings.v7SnapRadius * 2 :
+                activeTool === 'lasso-v8' ? settings.v8BaseSearchRadius * 2 :
+                24
+              }px`,
+              height: `${
+                activeTool === 'lasso' ? settings.snapRadius * 2 :
+                activeTool === 'lasso-v2' ? settings.snapRadius * 2 :
+                activeTool === 'lasso-v3' ? settings.snapRadius * 2 :
+                activeTool === 'lasso-v4' ? settings.v4SnapRadius * 2 :
+                activeTool === 'lasso-v5' ? settings.v5SnapRadius * 2 :
+                activeTool === 'lasso-v6' ? settings.v6SnapRadius * 2 :
+                activeTool === 'lasso-v7' ? settings.v7SnapRadius * 2 :
+                activeTool === 'lasso-v8' ? settings.v8BaseSearchRadius * 2 :
+                24
+              }px`,
+              transform: 'translate(-50%, -50%)',
+              boxShadow: '0 0 8px rgba(0, 217, 255, 0.6)',
+            }}
+          />
+        )}
+        
+        {/* Custom Brush Cursor - FIXED: Using screen coordinates */}
+        {activeTool === 'brush' && !isPanning && (
+          <div 
+            className="fixed rounded-full border border-cyan-400 pointer-events-none z-[9999]"
+            style={{ 
+              left: `${screenCursorPos.current.x}px`,
+              top: `${screenCursorPos.current.y}px`,
+              width: `${settings.brushSize * 2}px`,
+              height: `${settings.brushSize * 2}px`,
+              transform: 'translate(-50%, -50%)',
+              mixBlendMode: 'difference',
+            }}
+          />
+        )}
+        
+        {isProcessing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+            <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+      </div>
+      
+      {/* Live V7 Graphs Overlay */}
+      {activeTool === 'lasso-v7' && isDrawingLassoV7 && settings.v7ShowLiveGraphs && (
+        <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm rounded-lg p-3 border border-cyan-500/30">
+          <div className="space-y-2">
+            <div>
+              <p className="text-xs text-gray-400">Edge Quality</p>
+              <div className="w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-200"
+                  style={{ width: `${v7LiveEdgeQuality}%` }}
+                />
+              </div>
+              <p className="text-xs text-cyan-400 mt-0.5">{Math.round(v7LiveEdgeQuality)}%</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Cursor Influence</p>
+              <div className="w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-purple-500 transition-all duration-200"
+                  style={{ width: `${v7LiveCursorInfluence * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-purple-400 mt-0.5">{(v7LiveCursorInfluence * 100).toFixed(1)}%</p>
+            </div>
+            <div className="pt-1 border-t border-gray-700">
+              <p className="text-xs text-gray-500">Nodes: {lassoV7Nodes.length}</p>
+              {settings.v7ScrollUndoEnabled && v7UndoBuffer.length > 0 && (
+                <p className="text-xs text-yellow-400">Undo Buffer: {v7UndoBuffer.length}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Performance Diagnostics Overlay */}
+      {showDiagnostics && (
+        <div className="absolute top-4 right-4 bg-black/90 backdrop-blur-sm rounded-lg p-3 border border-cyan-500/30 min-w-[200px]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-cyan-400">Performance</p>
+            <button 
+              onClick={() => setShowDiagnostics(false)}
+              className="text-[10px] text-gray-500 hover:text-gray-300"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-gray-400">FPS</span>
+              <span className={`text-[10px] font-mono ${fps >= 55 ? 'text-green-400' : fps >= 30 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {fps}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-gray-400">Zoom</span>
+              <span className="text-[10px] font-mono text-gray-300">{(canvasZoom * 100).toFixed(0)}%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-gray-400">Pan Lag</span>
+              <span className={`text-[10px] font-mono ${panLag < 5 ? 'text-green-400' : panLag < 16 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {panLag.toFixed(1)}ms
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-gray-400">Zoom Lag</span>
+              <span className={`text-[10px] font-mono ${zoomLag < 5 ? 'text-green-400' : zoomLag < 16 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {zoomLag.toFixed(1)}ms
+              </span>
+            </div>
+            {activeTool === 'lasso-v7' && isDrawingLassoV7 && (
+              <>
+                <div className="h-px bg-gray-700 my-1" />
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-gray-400">V7 Nodes</span>
+                  <span className="text-[10px] font-mono text-orange-400">{lassoV7Nodes.length}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-gray-400">Locked</span>
+                  <span className="text-[10px] font-mono text-green-400">
+                    {lassoV7Nodes.filter(n => n.strength >= 1.0).length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-gray-400">Elastic</span>
+                  <span className="text-[10px] font-mono text-yellow-400">
+                    {lassoV7Nodes.filter(n => n.strength < 1.0).length}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-700">
+            <p className="text-[9px] text-gray-600 leading-relaxed">
+              Green = Good, Yellow = OK, Red = Slow
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!showDiagnostics && (
+        <button
+          onClick={() => setShowDiagnostics(true)}
+          className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-cyan-500/30 text-[10px] text-cyan-400"
+        >
+          Show Stats
+        </button>
+      )}
+    </div>
+  );
+}
+
+
+
+import React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Target, Palette, Settings, Paintbrush, Lasso, Eye, Brain, Zap, Sparkles, Timer, Ruler, Waves, Gauge, Filter, Droplet, Activity, Clock, Minimize2, Crosshair } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+
+export default function SettingsPanelV2({ settings, onSettingsChange, activeTool }) {
+  const updateSetting = (key, value) => {
+    onSettingsChange({ ...settings, [key]: value });
+  };
+
+  const WandSettings = () => (
+    <Card className="bg-[#1e1e2e] border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+          <Target className="w-4 h-4 text-cyan-400" />
+          Magic Wand
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label className="text-sm text-gray-400">Tolerance</Label>
+            <span className="text-sm text-cyan-400 font-medium">{settings.tolerance}</span>
+          </div>
+          <Slider
+            value={[settings.tolerance]}
+            onValueChange={([value]) => updateSetting("tolerance", value)}
+            min={0}
+            max={100}
+            step={1}
+            className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+          />
+        </div>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label className="text-sm text-gray-400">Color Space</Label>
+          </div>
+          <Select value={settings.colorSpace} onValueChange={(value) => updateSetting("colorSpace", value)}>
+              <SelectTrigger className="bg-[#14141f] border-gray-700 text-gray-300">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1e1e2e] border-gray-700">
+                <SelectItem value="rgb" className="text-gray-300">RGB</SelectItem>
+                <SelectItem value="hsv" className="text-gray-300">HSV</SelectItem>
+                <SelectItem value="lab" className="text-gray-300">LAB</SelectItem>
+              </SelectContent>
+            </Select>
+        </div>
+        <div className="flex items-center justify-between">
+          <Label className="text-sm text-gray-400">Contiguous</Label>
+          <Switch
+            checked={settings.contiguous}
+            onCheckedChange={(checked) => updateSetting("contiguous", checked)}
+            className="data-[state=checked]:bg-cyan-500"
+          />
+        </div>
+         <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label className="text-sm text-gray-400">Search Radius</Label>
+            <span className="text-sm text-cyan-400 font-medium">{settings.searchRadius}px</span>
+          </div>
+          <Slider
+            value={[settings.searchRadius]}
+            onValueChange={([value]) => updateSetting("searchRadius", value)}
+            min={5}
+            max={50}
+            step={5}
+            disabled={settings.contiguous}
+            className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const BrushSettings = () => (
+    <Card className="bg-[#1e1e2e] border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+          <Paintbrush className="w-4 h-4 text-cyan-400" />
+          Brush / Eraser
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label className="text-sm text-gray-400">Brush Size</Label>
+            <span className="text-sm text-cyan-400 font-medium">{settings.brushSize}</span>
+          </div>
+          <Slider
+            value={[settings.brushSize]}
+            onValueChange={([value]) => updateSetting("brushSize", value)}
+            min={1}
+            max={200}
+            step={1}
+            className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+          />
+        </div>
+         <div className="text-xs text-gray-500 p-3 bg-gray-900/50 rounded-lg">
+            Hold <kbd className="px-2 py-1 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded-lg">Alt</kbd> while painting to Erase from the selection.
+         </div>
+      </CardContent>
+    </Card>
+  );
+
+  const LassoSettings = () => (
+    <Card className="bg-[#1e1e2e] border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+          <Lasso className="w-4 h-4 text-cyan-400" />
+          Magic Lasso (V1)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label className="text-sm text-gray-400">Node Size</Label>
+            <span className="text-sm text-cyan-400 font-medium">{settings.nodeSize}px</span>
+          </div>
+          <Slider
+            value={[settings.nodeSize]}
+            onValueChange={([value]) => updateSetting("nodeSize", value)}
+            min={2}
+            max={10}
+            step={0.5}
+            className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+          />
+        </div>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label className="text-sm text-gray-400">Search Radius</Label>
+            <span className="text-sm text-cyan-400 font-medium">{settings.snapRadius}px</span>
+          </div>
+          <Slider
+            value={[settings.snapRadius]}
+            onValueChange={([value]) => updateSetting("snapRadius", value)}
+            min={5}
+            max={50}
+            step={1}
+            className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+          />
+        </div>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label className="text-sm text-gray-400">Path Fineness</Label>
+            <span className="text-sm text-cyan-400 font-medium">{settings.pathFineness.toFixed(2)}</span>
+          </div>
+          <Slider
+            value={[settings.pathFineness]}
+            onValueChange={([value]) => updateSetting("pathFineness", value)}
+            min={0.1}
+            max={1}
+            step={0.05}
+            className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+          />
+        </div>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label className="text-sm text-gray-400">Curve Strength</Label>
+            <span className="text-sm text-cyan-400 font-medium">{settings.curveStrength.toFixed(2)}</span>
+          </div>
+          <Slider
+            value={[settings.curveStrength]}
+            onValueChange={([value]) => updateSetting("curveStrength", value)}
+            min={0}
+            max={1}
+            step={0.05}
+            className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+          />
+        </div>
+        <div className="text-xs text-gray-500 p-3 bg-gray-900/50 rounded-lg space-y-1">
+            <p>Press <kbd className="px-2 py-1 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded-lg">Enter</kbd> to complete the selection.</p>
+            <p>Press <kbd className="px-2 py-1 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded-lg">Esc</kbd> to cancel.</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const LassoV2Settings = () => (
+    <>
+      <Card className="bg-[#1e1e2e] border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-green-400" />
+            Advanced Lasso V2
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-xs text-gray-400 p-2 bg-green-500/10 rounded border border-green-500/30">
+            <p className="font-semibold text-green-400 mb-1">Trail-Based Edge Snapping</p>
+            <p>V2 follows your cursor path by dropping nodes along your movement, then snaps to edges sequentially. Perfect for complex curves!</p>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Display Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Eye className="w-4 h-4 text-gray-400" />
+              Display
+            </div>
+            
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Node Size</Label>
+                <span className="text-xs text-gray-400 font-medium">{settings.v2NodeSize}px</span>
+              </div>
+              <Slider
+                value={[settings.v2NodeSize]}
+                onValueChange={([value]) => updateSetting("v2NodeSize", value)}
+                min={2}
+                max={10}
+                step={0.5}
+                className="[&_[role=slider]]:bg-gray-500 [&_[role=slider]]:border-gray-400"
+              />
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Node Dropping Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Timer className="w-4 h-4 text-purple-400" />
+              Node Dropping
+            </div>
+            
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Drop Interval</Label>
+                <span className="text-xs text-purple-400 font-medium">{settings.v2NodeDropInterval}ms</span>
+              </div>
+              <Slider
+                value={[settings.v2NodeDropInterval]}
+                onValueChange={([value]) => updateSetting("v2NodeDropInterval", value)}
+                min={100}
+                max={1000}
+                step={50}
+                className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+              />
+              <p className="text-xs text-gray-500">Time between automatic node drops</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Min Distance</Label>
+                <span className="text-xs text-purple-400 font-medium">{settings.v2MinNodeDistance}px</span>
+              </div>
+              <Slider
+                value={[settings.v2MinNodeDistance]}
+                onValueChange={([value]) => updateSetting("v2MinNodeDistance", value)}
+                min={1}
+                max={20}
+                step={1}
+                className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+              />
+              <p className="text-xs text-gray-500">Minimum pixels before dropping a node</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Max Distance</Label>
+                <span className="text-xs text-purple-400 font-medium">{settings.v2MaxNodeDistance}px</span>
+              </div>
+              <Slider
+                value={[settings.v2MaxNodeDistance]}
+                onValueChange={([value]) => updateSetting("v2MaxNodeDistance", value)}
+                min={10}
+                max={100}
+                step={5}
+                className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+              />
+              <p className="text-xs text-gray-500">Force drop node after this distance</p>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Edge Detection Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Zap className="w-4 h-4 text-yellow-400" />
+              Edge Detection
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Edge Sensitivity</Label>
+                <span className="text-xs text-yellow-400 font-medium">{settings.v2EdgeSensitivity.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v2EdgeSensitivity]}
+                onValueChange={([value]) => updateSetting("v2EdgeSensitivity", value)}
+                min={0.1}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-yellow-500 [&_[role=slider]]:border-yellow-400"
+              />
+              <p className="text-xs text-gray-500">How strongly the path snaps to edges</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Snap Strength</Label>
+                <span className="text-xs text-yellow-400 font-medium">{settings.v2SnapStrength.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v2SnapStrength]}
+                onValueChange={([value]) => updateSetting("v2SnapStrength", value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-yellow-500 [&_[role=slider]]:border-yellow-400"
+              />
+              <p className="text-xs text-gray-500">Balance between cursor direction and edge strength</p>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Buffer & Flexibility Controls */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Ruler className="w-4 h-4 text-orange-400" />
+              Buffer & Flexibility
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Buffer Zone</Label>
+                <span className="text-xs text-orange-400 font-medium">{settings.v2BufferZone}px</span>
+              </div>
+              <Slider
+                value={[settings.v2BufferZone]}
+                onValueChange={([value]) => updateSetting("v2BufferZone", value)}
+                min={5}
+                max={50}
+                step={5}
+                className="[&_[role=slider]]:bg-orange-500 [&_[role=slider]]:border-orange-400"
+              />
+              <p className="text-xs text-gray-500">How far path can deviate from cursor trail</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Node Influence</Label>
+                <span className="text-xs text-orange-400 font-medium">{settings.v2NodeInfluence.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v2NodeInfluence]}
+                onValueChange={([value]) => updateSetting("v2NodeInfluence", value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-orange-500 [&_[role=slider]]:border-orange-400"
+              />
+              <p className="text-xs text-gray-500">Weight: trail proximity vs edge strength</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Directional Bias</Label>
+                <span className="text-xs text-orange-400 font-medium">{settings.v2DirectionalBias.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v2DirectionalBias]}
+                onValueChange={([value]) => updateSetting("v2DirectionalBias", value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-orange-500 [&_[role=slider]]:border-orange-400"
+              />
+              <p className="text-xs text-gray-500">Prefer continuing in cursor direction</p>
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Adaptive Search</Label>
+              <Switch
+                checked={settings.v2AdaptiveSearch}
+                onCheckedChange={(checked) => updateSetting("v2AdaptiveSearch", checked)}
+                className="data-[state=checked]:bg-orange-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">Dynamically adjust search radius based on edge density</p>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Curve & Display Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Waves className="w-4 h-4 text-cyan-400" />
+              Curve & Display
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Curve Smoothing</Label>
+                <span className="text-xs text-cyan-400 font-medium">{settings.v2CurveSmoothing.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v2CurveSmoothing]}
+                onValueChange={([value]) => updateSetting("v2CurveSmoothing", value)}
+                min={0.1}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+              />
+              <p className="text-xs text-gray-500">Path simplification level (higher = smoother)</p>
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Show Trail</Label>
+              <Switch
+                checked={settings.v2ShowTrail}
+                onCheckedChange={(checked) => updateSetting("v2ShowTrail", checked)}
+                className="data-[state=checked]:bg-cyan-500 scale-75"
+              />
+            </div>
+
+            {settings.v2ShowTrail && (
+              <div className="space-y-2 pl-6">
+                <div className="flex justify-between">
+                  <Label className="text-xs text-gray-400">Trail Opacity</Label>
+                  <span className="text-xs text-cyan-400 font-medium">{(settings.v2TrailOpacity * 100).toFixed(0)}%</span>
+                </div>
+                <Slider
+                  value={[settings.v2TrailOpacity]}
+                  onValueChange={([value]) => updateSetting("v2TrailOpacity", value)}
+                  min={0.1}
+                  max={1}
+                  step={0.05}
+                  className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+                />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[#1e1e2e] border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-xs text-gray-300 flex items-center gap-2">
+            <Brain className="w-3 h-3 text-gray-400" />
+            Usage Tips
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs text-gray-500">
+          <p>• <span className="text-green-400">Click</span> to drop anchor nodes</p>
+          <p>• <span className="text-purple-400">Move</span> your cursor smoothly along edges</p>
+          <p>• Trail nodes drop automatically as you move</p>
+          <p>• <span className="text-orange-400">Buffer Zone</span> gives freedom to deviate</p>
+          <p>• <span className="text-yellow-400">Adaptive Search</span> finds edges better</p>
+          <p>• Press <kbd className="px-1 py-0.5 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded">Enter</kbd> to complete</p>
+          <p>• Press <kbd className="px-1 py-0.5 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded">Esc</kbd> to cancel</p>
+        </CardContent>
+      </Card>
+    </>
+  );
+  
+  const LassoV3Settings = () => (
+    <>
+      <Card className="bg-[#1e1e2e] border-gray-700 border-2 border-yellow-500/30">
+        <CardHeader>
+          <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+            <Zap className="w-4 h-4 text-yellow-400" />
+            Pro Lasso V3 - Photoshop-Grade
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-xs text-gray-400 p-2 bg-yellow-500/10 rounded border border-yellow-500/30">
+            <p className="font-semibold text-yellow-400 mb-1">🚀 10-20x Faster + Smarter Edge Detection</p>
+            <p>V3 uses 8-connected search, Gaussian blur, bidirectional closing, and speed-adaptive cursor influence for pro-level results.</p>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Display Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Eye className="w-4 h-4 text-gray-400" />
+              Display
+            </div>
+            
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Node Size</Label>
+                <span className="text-xs text-gray-400 font-medium">{settings.v3NodeSize}px</span>
+              </div>
+              <Slider
+                value={[settings.v3NodeSize]}
+                onValueChange={([value]) => updateSetting("v3NodeSize", value)}
+                min={2}
+                max={10}
+                step={0.5}
+                className="[&_[role=slider]]:bg-gray-500 [&_[role=slider]]:border-gray-400"
+              />
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Core Performance */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Gauge className="w-4 h-4 text-red-400" />
+              Performance
+            </div>
+            
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">8-Connected Search</Label>
+              <Switch
+                checked={settings.v3Use8Connected}
+                onCheckedChange={(checked) => updateSetting("v3Use8Connected", checked)}
+                className="data-[state=checked]:bg-red-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">10-20x faster pathfinding (RECOMMENDED)</p>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Step Size</Label>
+                <span className="text-xs text-red-400 font-medium">{settings.v3StepSize}px</span>
+              </div>
+              <Slider
+                value={[settings.v3StepSize]}
+                onValueChange={([value]) => updateSetting("v3StepSize", value)}
+                min={1}
+                max={3}
+                step={1}
+                className="[&_[role=slider]]:bg-red-500 [&_[role=slider]]:border-red-400"
+              />
+              <p className="text-xs text-gray-500">Pixels per search step</p>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Edge Detection */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Filter className="w-4 h-4 text-blue-400" />
+              Edge Detection
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Gaussian Blur</Label>
+              <Switch
+                checked={settings.v3UseGaussianBlur}
+                onCheckedChange={(checked) => updateSetting("v3UseGaussianBlur", checked)}
+                className="data-[state=checked]:bg-blue-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">Smooth edge map, reduce noise</p>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Edge Confidence</Label>
+                <span className="text-xs text-blue-400 font-medium">{settings.v3EdgeConfidenceThreshold}</span>
+              </div>
+              <Slider
+                value={[settings.v3EdgeConfidenceThreshold]}
+                onValueChange={([value]) => updateSetting("v3EdgeConfidenceThreshold", value)}
+                min={0}
+                max={100}
+                step={5}
+                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+              />
+              <p className="text-xs text-gray-500">Ignore weak edges (0-255)</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Contrast Threshold</Label>
+                <span className="text-xs text-blue-400 font-medium">{settings.v3ContrastThreshold.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v3ContrastThreshold]}
+                onValueChange={([value]) => updateSetting("v3ContrastThreshold", value)}
+                min={0}
+                max={0.5}
+                step={0.05}
+                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+              />
+              <p className="text-xs text-gray-500">Only snap to strong contrasts</p>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Path Intelligence */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Brain className="w-4 h-4 text-purple-400" />
+              Path Intelligence
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Bidirectional Close</Label>
+              <Switch
+                checked={settings.v3UseBidirectionalClose}
+                onCheckedChange={(checked) => updateSetting("v3UseBidirectionalClose", checked)}
+                className="data-[state=checked]:bg-purple-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">Better loop closure (A* style)</p>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Speed Influence</Label>
+                <span className="text-xs text-purple-400 font-medium">{settings.v3SpeedInfluence.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v3SpeedInfluence]}
+                onValueChange={([value]) => updateSetting("v3SpeedInfluence", value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+              />
+              <p className="text-xs text-gray-500">Fast moves = follow cursor, slow = hug edge</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Path Quality</Label>
+                <span className="text-xs text-purple-400 font-medium">{settings.v3PathQuality.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v3PathQuality]}
+                onValueChange={([value]) => updateSetting("v3PathQuality", value)}
+                min={0.1}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+              />
+              <p className="text-xs text-gray-500">Path optimization level (higher = smoother)</p>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Advanced Effects (Experimental) */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Droplet className="w-4 h-4 text-cyan-400" />
+              Advanced Effects (Experimental)
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Anti-Aliasing</Label>
+              <Switch
+                checked={settings.v3AntiAlias}
+                onCheckedChange={(checked) => updateSetting("v3AntiAlias", checked)}
+                className="data-[state=checked]:bg-cyan-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">Feathered, pro-quality edges</p>
+
+            {settings.v3AntiAlias && (
+              <div className="space-y-2 pl-6">
+                <div className="flex justify-between">
+                  <Label className="text-xs text-gray-400">Feather Radius</Label>
+                  <span className="text-xs text-cyan-400 font-medium">{settings.v3FeatherRadius}px</span>
+                </div>
+                <Slider
+                  value={[settings.v3FeatherRadius]}
+                  onValueChange={([value]) => updateSetting("v3FeatherRadius", value)}
+                  min={1}
+                  max={10}
+                  step={0.5}
+                  className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+                />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[#1e1e2e] border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-xs text-gray-300 flex items-center gap-2">
+            <Sparkles className="w-3 h-3 text-yellow-400" />
+            What Makes V3 PRO
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs text-gray-500">
+          <p>✨ <span className="text-yellow-400">8-Connected Search</span> - 10-20x faster than V1/V2</p>
+          <p>🎯 <span className="text-blue-400">Smart Edge Detection</span> - Ignores noise & textures</p>
+          <p>🧠 <span className="text-purple-400">Speed-Adaptive</span> - Follows intent dynamically</p>
+          <p>🔄 <span className="text-green-400">Bidirectional Close</span> - Perfect loops every time</p>
+          <p>🎨 <span className="text-cyan-400">Anti-Aliased</span> - Photoshop-quality output</p>
+          <p className="pt-2 border-t border-gray-700">Press <kbd className="px-1 py-0.5 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded">Enter</kbd> to complete</p>
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  // ENHANCED V4 Settings Panel with comprehensive auto-anchor controls
+  const LassoV4Settings = () => (
+    <>
+      <Card className="bg-[#1e1e2e] border-gray-700 border-2 border-cyan-500/30">
+        <CardHeader>
+          <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+            <Target className="w-4 h-4 text-cyan-400" />
+            Smart Lasso V4 - Auto-Anchor Pro
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-xs text-gray-400 p-2 bg-cyan-500/10 rounded border border-cyan-500/30">
+            <p className="font-semibold text-cyan-400 mb-1">🎯 Advanced Auto-Anchoring</p>
+            <p>Distance-based, time-based, or hybrid modes. Double-click to auto-complete & create layer. Backspace to undo!</p>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Display Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Eye className="w-4 h-4 text-cyan-400" />
+              Display
+            </div>
+            
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Node Size</Label>
+                <span className="text-xs text-cyan-400 font-medium">{settings.v4NodeSize}px</span>
+              </div>
+              <Slider
+                value={[settings.v4NodeSize]}
+                onValueChange={([value]) => updateSetting("v4NodeSize", value)}
+                min={1}
+                max={10}
+                step={0.5}
+                className="[&_[role=slider]]:bg-cyan-500 [&_[role=slider]]:border-cyan-400"
+              />
+              <p className="text-xs text-gray-500">Smaller = less clutter</p>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Auto-Anchor Mode Selection */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Activity className="w-4 h-4 text-green-400" />
+              Auto-Anchoring
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Enable Auto-Anchor</Label>
+              <Switch
+                checked={settings.v4AutoAnchor}
+                onCheckedChange={(checked) => updateSetting("v4AutoAnchor", checked)}
+                className="data-[state=checked]:bg-green-500 scale-75"
+              />
+            </div>
+
+            {settings.v4AutoAnchor && (
+              <>
+                <div className="space-y-2 pl-6">
+                  <Label className="text-xs text-gray-400">Mode</Label>
+                  <Select value={settings.v4AutoAnchorMode} onValueChange={(value) => updateSetting("v4AutoAnchorMode", value)}>
+                    <SelectTrigger className="bg-[#14141f] border-gray-700 text-gray-300 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1e1e2e] border-gray-700">
+                      <SelectItem value="distance" className="text-xs">Distance Only</SelectItem>
+                      <SelectItem value="time" className="text-xs">Time Only</SelectItem>
+                      <SelectItem value="hybrid" className="text-xs">Hybrid (Distance OR Time)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">How auto-anchors are triggered</p>
+                </div>
+
+                <Separator className="bg-gray-700" />
+
+                {/* Distance-Based Settings */}
+                {(settings.v4AutoAnchorMode === 'distance' || settings.v4AutoAnchorMode === 'hybrid') && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold pl-6">
+                      <Ruler className="w-4 h-4 text-blue-400" />
+                      Distance-Based
+                    </div>
+
+                    <div className="space-y-2 pl-12">
+                      <div className="flex justify-between">
+                        <Label className="text-xs text-gray-400">Trigger Distance</Label>
+                        <span className="text-xs text-blue-400 font-medium">{settings.v4AutoAnchorDistance}px</span>
+                      </div>
+                      <Slider
+                        value={[settings.v4AutoAnchorDistance]}
+                        onValueChange={([value]) => updateSetting("v4AutoAnchorDistance", value)}
+                        min={30}
+                        max={300}
+                        step={10}
+                        className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+                      />
+                      <p className="text-xs text-gray-500">Drop anchor after cursor moves this far</p>
+                    </div>
+
+                    <div className="space-y-2 pl-12">
+                      <div className="flex justify-between">
+                        <Label className="text-xs text-gray-400">Min Movement</Label>
+                        <span className="text-xs text-blue-400 font-medium">{settings.v4MinCursorMovement}px</span>
+                      </div>
+                      <Slider
+                        value={[settings.v4MinCursorMovement]}
+                        onValueChange={([value]) => updateSetting("v4MinCursorMovement", value)}
+                        min={0}
+                        max={50}
+                        step={5}
+                        className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+                      />
+                      <p className="text-xs text-gray-500">Min total movement before anchor drops</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Time-Based Settings */}
+                {(settings.v4AutoAnchorMode === 'time' || settings.v4AutoAnchorMode === 'hybrid') && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold pl-6">
+                      <Clock className="w-4 h-4 text-purple-400" />
+                      Time-Based
+                    </div>
+
+                    <div className="space-y-2 pl-12">
+                      <div className="flex justify-between">
+                        <Label className="text-xs text-gray-400">Time Interval</Label>
+                        <span className="text-xs text-purple-400 font-medium">{settings.v4TimeInterval}ms</span>
+                      </div>
+                      <Slider
+                        value={[settings.v4TimeInterval]}
+                        onValueChange={([value]) => updateSetting("v4TimeInterval", value)}
+                        min={200}
+                        max={2000}
+                        step={100}
+                        className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+                      />
+                      <p className="text-xs text-gray-500">Drop anchor after this time</p>
+                    </div>
+
+                    <div className="space-y-2 pl-12">
+                      <div className="flex justify-between">
+                        <Label className="text-xs text-gray-400">Min Distance for Time</Label>
+                        <span className="text-xs text-purple-400 font-medium">{settings.v4MinDistanceForTime}px</span>
+                      </div>
+                      <Slider
+                        value={[settings.v4MinDistanceForTime]}
+                        onValueChange={([value]) => updateSetting("v4MinDistanceForTime", value)}
+                        min={5}
+                        max={50}
+                        step={5}
+                        className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+                      />
+                      <p className="text-xs text-gray-500">Must move this far before time drops</p>
+                    </div>
+                  </div>
+                )}
+
+                <Separator className="bg-gray-700" />
+
+                {/* Anchor Position */}
+                <div className="space-y-2 pl-6">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-gray-400">Anchor Position</Label>
+                    <span className="text-xs text-green-400 font-medium">{(settings.v4AutoAnchorPosition * 100).toFixed(0)}%</span>
+                  </div>
+                  <Slider
+                    value={[settings.v4AutoAnchorPosition]}
+                    onValueChange={([value]) => updateSetting("v4AutoAnchorPosition", value)}
+                    min={0.1}
+                    max={0.9}
+                    step={0.05}
+                    className="[&_[role=slider]]:bg-green-500 [&_[role=slider]]:border-green-400"
+                  />
+                  <p className="text-xs text-gray-500">Where on path to place anchor (50% = midpoint)</p>
+                </div>
+              </>
+            )}
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Path Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Waves className="w-4 h-4 text-orange-400" />
+              Path Settings
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Search Radius</Label>
+                <span className="text-xs text-orange-400 font-medium">{settings.v4SnapRadius}px</span>
+              </div>
+              <Slider
+                value={[settings.v4SnapRadius]}
+                onValueChange={([value]) => updateSetting("v4SnapRadius", value)}
+                min={5}
+                max={50}
+                step={1}
+                className="[&_[role=slider]]:bg-orange-500 [&_[role=slider]]:border-orange-400"
+              />
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Path Fineness</Label>
+                <span className="text-xs text-orange-400 font-medium">{settings.v4PathFineness.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v4PathFineness]}
+                onValueChange={([value]) => updateSetting("v4PathFineness", value)}
+                min={0.1}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-orange-500 [&_[role=slider]]:border-orange-400"
+              />
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Cursor Influence</Label>
+                <span className="text-xs text-orange-400 font-medium">{settings.v4CursorInfluence.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v4CursorInfluence]}
+                onValueChange={([value]) => updateSetting("v4CursorInfluence", value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-orange-500 [&_[role=slider]]:border-orange-400"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[#1e1e2e] border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-xs text-gray-300 flex items-center gap-2">
+            <Brain className="w-3 h-3 text-cyan-400" />
+            How to Use V4
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs text-gray-500">
+          <p>• <span className="text-cyan-400">Click</span> to start & manually add anchors</p>
+          <p>• <span className="text-green-400">Move</span> cursor - anchors auto-drop based on mode:</p>
+          <p className="pl-4">→ <span className="text-blue-400">Distance</span>: when cursor moves far enough</p>
+          <p className="pl-4">→ <span className="text-purple-400">Time</span>: at fixed intervals while moving</p>
+          <p className="pl-4">→ <span className="text-yellow-400">Hybrid</span>: either condition triggers</p>
+          <p>• <span className="text-red-400">Backspace</span> to undo last anchor</p>
+          <p>• <span className="text-pink-400">Double-click</span> to auto-complete & create layer</p>
+          <p className="pt-2 border-t border-gray-700">Press <kbd className="px-1 py-0.5 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded">Enter</kbd> to complete manually</p>
+          <p>Press <kbd className="px-1 py-0.5 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded">Esc</kbd> to cancel</p>
+        </CardContent>
+      </Card>
+    </>
+  );
+  
+  const LassoV5Settings = () => (
+    <>
+      <Card className="bg-[#1e1e2e] border-gray-700 border-2 border-pink-500/30">
+        <CardHeader>
+          <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+            <Crosshair className="w-4 h-4 text-pink-400" />
+            Edge-Trail Lasso V5
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-xs text-gray-400 p-2 bg-pink-500/10 rounded border border-pink-500/30">
+            <p className="font-semibold text-pink-400 mb-1">🎯 Edge-Trailing Smart Anchor</p>
+            <p>Automatically anchors at 50% along path. Click places anchor at edge-trail node (where path leaves edge for cursor). Visual gold node shows optimal anchor point!</p>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Display Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Eye className="w-4 h-4 text-pink-400" />
+              Display
+            </div>
+            
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Node Size</Label>
+                <span className="text-xs text-pink-400 font-medium">{settings.v5NodeSize}px</span>
+              </div>
+              <Slider
+                value={[settings.v5NodeSize]}
+                onValueChange={([value]) => updateSetting("v5NodeSize", value)}
+                min={2}
+                max={10}
+                step={0.5}
+                className="[&_[role=slider]]:bg-pink-500 [&_[role=slider]]:border-pink-400"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Show Edge-Trail Node</Label>
+              <Switch
+                checked={settings.v5ShowEdgeTrailNode}
+                onCheckedChange={(checked) => updateSetting("v5ShowEdgeTrailNode", checked)}
+                className="data-[state=checked]:bg-yellow-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">Golden node shows where path leaves edge</p>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Auto-Anchoring */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Activity className="w-4 h-4 text-green-400" />
+              Auto-Anchoring
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Enable Auto-Anchor</Label>
+              <Switch
+                checked={settings.v5AutoAnchor}
+                onCheckedChange={(checked) => updateSetting("v5AutoAnchor", checked)}
+                className="data-[state=checked]:bg-green-500 scale-75"
+              />
+            </div>
+
+            {settings.v5AutoAnchor && (
+              <>
+                <div className="space-y-2 pl-6">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-gray-400">Time Interval</Label>
+                    <span className="text-xs text-green-400 font-medium">{settings.v5AutoAnchorInterval}ms</span>
+                  </div>
+                  <Slider
+                    value={[settings.v5AutoAnchorInterval]}
+                    onValueChange={([value]) => updateSetting("v5AutoAnchorInterval", value)}
+                    min={500}
+                    max={2000}
+                    step={100}
+                    className="[&_[role=slider]]:bg-green-500 [&_[role=slider]]:border-green-400"
+                  />
+                  <p className="text-xs text-gray-500">Drop anchor every ~N milliseconds</p>
+                </div>
+
+                <div className="space-y-2 pl-6">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-gray-400">Min Distance</Label>
+                    <span className="text-xs text-green-400 font-medium">{settings.v5MinAnchorDistance}px</span>
+                  </div>
+                  <Slider
+                    value={[settings.v5MinAnchorDistance]}
+                    onValueChange={([value]) => updateSetting("v5MinAnchorDistance", value)}
+                    min={10}
+                    max={100}
+                    step={5}
+                    className="[&_[role=slider]]:bg-green-500 [&_[role=slider]]:border-green-400"
+                  />
+                  <p className="text-xs text-gray-500">Minimum distance before auto-anchor</p>
+                </div>
+
+                <div className="space-y-2 pl-6">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-gray-400">Max Distance</Label>
+                    <span className="text-xs text-green-400 font-medium">{settings.v5MaxAnchorDistance}px</span>
+                  </div>
+                  <Slider
+                    value={[settings.v5MaxAnchorDistance]}
+                    onValueChange={([value]) => updateSetting("v5MaxAnchorDistance", value)}
+                    min={50}
+                    max={300}
+                    step={10}
+                    className="[&_[role=slider]]:bg-green-500 [&_[role=slider]]:border-green-400"
+                  />
+                  <p className="text-xs text-gray-500">Force anchor after this distance</p>
+                </div>
+
+                <div className="space-y-2 pl-6">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-gray-400">Anchor Position</Label>
+                    <span className="text-xs text-green-400 font-medium">{(settings.v5AnchorPosition * 100).toFixed(0)}%</span>
+                  </div>
+                  <Slider
+                    value={[settings.v5AnchorPosition]}
+                    onValueChange={([value]) => updateSetting("v5AnchorPosition", value)}
+                    min={0.3}
+                    max={0.7}
+                    step={0.05}
+                    className="[&_[role=slider]]:bg-green-500 [&_[role=slider]]:border-green-400"
+                  />
+                  <p className="text-xs text-gray-500">Where along path to auto-anchor (50% = midpoint)</p>
+                </div>
+              </>
+            )}
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Edge Detection Tuning */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Filter className="w-4 h-4 text-yellow-400" />
+              Edge Detection
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Edge Threshold</Label>
+                <span className="text-xs text-yellow-400 font-medium">{settings.v5EdgeTrailThreshold.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v5EdgeTrailThreshold]}
+                onValueChange={([value]) => updateSetting("v5EdgeTrailThreshold", value)}
+                min={0.3}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-yellow-500 [&_[role=slider]]:border-yellow-400"
+              />
+              <p className="text-xs text-gray-500">How strong edge must be to consider "on edge"</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Sharp Turn Angle</Label>
+                <span className="text-xs text-yellow-400 font-medium">{settings.v5SharpTurnAngle}°</span>
+              </div>
+              <Slider
+                value={[settings.v5SharpTurnAngle]}
+                onValueChange={([value]) => updateSetting("v5SharpTurnAngle", value)}
+                min={20}
+                max={90}
+                step={5}
+                className="[&_[role=slider]]:bg-yellow-500 [&_[role=slider]]:border-yellow-400"
+              />
+              <p className="text-xs text-gray-500">Angle to detect path leaving edge</p>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Path Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Waves className="w-4 h-4 text-blue-400" />
+              Path Settings
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Search Radius</Label>
+                <span className="text-xs text-blue-400 font-medium">{settings.v5SnapRadius}px</span>
+              </div>
+              <Slider
+                value={[settings.v5SnapRadius]}
+                onValueChange={([value]) => updateSetting("v5SnapRadius", value)}
+                min={5}
+                max={50}
+                step={1}
+                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+              />
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Path Fineness</Label>
+                <span className="text-xs text-blue-400 font-medium">{settings.v5PathFineness.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v5PathFineness]}
+                onValueChange={([value]) => updateSetting("v5PathFineness", value)}
+                min={0.1}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+              />
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Cursor Influence</Label>
+                <span className="text-xs text-blue-400 font-medium">{settings.v5CursorInfluence.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v5CursorInfluence]}
+                onValueChange={([value]) => updateSetting("v5CursorInfluence", value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[#1e1e2e] border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-xs text-gray-300 flex items-center gap-2">
+            <Brain className="w-3 h-3 text-pink-400" />
+            How Edge-Trail Works
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs text-gray-500">
+          <p>• <span className="text-pink-400">Click</span> to start lasso</p>
+          <p>• <span className="text-pink-400">Move</span> cursor - path follows edges</p>
+          <p>• <span className="text-yellow-400">Golden node</span> shows where path leaves edge</p>
+          <p>• <span className="text-green-400">Auto-anchors</span> drop at 50% along path</p>
+          <p>• When you <span className="text-cyan-400">click</span>, anchor places at golden node</p>
+          <p>• This ensures anchors stay on edges, not off in space!</p>
+          <p>• <span className="text-red-400">Backspace</span> to undo anchors</p>
+          <p className="pt-2 border-t border-gray-700">Press <kbd className="px-1 py-0.5 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded">Enter</kbd> to complete</p>
+        </CardContent>
+      </Card>
+    </>
+  );
+  
+  // NEW V6 Settings Panel - Smooth Elastic Anchoring
+  const LassoV6Settings = () => (
+    <>
+      <Card className="bg-[#1e1e2e] border-gray-700 border-2 border-green-500/30">
+        <CardHeader>
+          <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+            <Waves className="w-4 h-4 text-green-400" />
+            Elastic Lasso V6 - Smooth Flow
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-xs text-gray-400 p-2 bg-green-500/10 rounded border border-green-500/30">
+            <p className="font-semibold text-green-400 mb-1">🌊 Nodes Trail Behind Edge-Trail</p>
+            <p>Golden edge-trail node leads, elastic gradient nodes follow behind and anchor in its wake!</p>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Display Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Eye className="w-4 h-4 text-green-400" />
+              Display
+            </div>
+            
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Node Size</Label>
+                <span className="text-xs text-green-400 font-medium">{settings.v6NodeSize}px</span>
+              </div>
+              <Slider
+                value={[settings.v6NodeSize]}
+                onValueChange={([value]) => updateSetting("v6NodeSize", value)}
+                min={3}
+                max={12}
+                step={0.5}
+                className="[&_[role=slider]]:bg-green-500 [&_[role=slider]]:border-green-400"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Show Elastic Gradient</Label>
+              <Switch
+                checked={settings.v6ShowElasticGradient}
+                onCheckedChange={(checked) => updateSetting("v6ShowElasticGradient", checked)}
+                className="data-[state=checked]:bg-green-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">Nodes trailing behind edge-trail node</p>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Show Edge-Trail Node</Label>
+              <Switch
+                checked={settings.v6ShowEdgeTrailNode}
+                onCheckedChange={(checked) => updateSetting("v6ShowEdgeTrailNode", checked)}
+                className="data-[state=checked]:bg-yellow-500 scale-75"
+              />
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Smooth Anchoring Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Activity className="w-4 h-4 text-cyan-400" />
+              Auto-Anchoring
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Enable Auto-Anchor</Label>
+              <Switch
+                checked={settings.v6AutoAnchor}
+                onCheckedChange={(checked) => updateSetting("v6AutoAnchor", checked)}
+                className="data-[state=checked]:bg-cyan-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">Anchors nodes as edge-trail moves forward</p>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Elastic Gradient Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Waves className="w-4 h-4 text-purple-400" />
+              Elastic Gradient
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Gradient Length</Label>
+                <span className="text-xs text-purple-400 font-medium">{settings.v6ElasticGradientLength} nodes</span>
+              </div>
+              <Slider
+                value={[settings.v6ElasticGradientLength]}
+                onValueChange={([value]) => updateSetting("v6ElasticGradientLength", value)}
+                min={3}
+                max={20}
+                step={1}
+                className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+              />
+              <p className="text-xs text-gray-500">Nodes behind edge-trail with elastic effect</p>
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Elastic Strength</Label>
+                <span className="text-xs text-purple-400 font-medium">{settings.v6ElasticStrength.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v6ElasticStrength]}
+                onValueChange={([value]) => updateSetting("v6ElasticStrength", value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+              />
+              <p className="text-xs text-gray-500">How elastic nodes appear (higher = more yellow)</p>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Edge-Trail Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Filter className="w-4 h-4 text-yellow-400" />
+              Edge-Trail Node
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Trail Position</Label>
+                <span className="text-xs text-yellow-400 font-medium">{(settings.v6EdgeTrailOffset * 100).toFixed(0)}%</span>
+              </div>
+              <Slider
+                value={[settings.v6EdgeTrailOffset]}
+                onValueChange={([value]) => updateSetting("v6EdgeTrailOffset", value)}
+                min={0.1}
+                max={0.7}
+                step={0.05}
+                className="[&_[role=slider]]:bg-yellow-500 [&_[role=slider]]:border-yellow-400"
+              />
+              <p className="text-xs text-gray-500">Golden node position along preview path</p>
+            </div>
+
+            <div className="flex items-center justify-between pl-6">
+              <Label className="text-xs text-gray-400">Magnetic Toward Cursor</Label>
+              <Switch
+                checked={settings.v6MagneticTowardCursor}
+                onCheckedChange={(checked) => updateSetting("v6MagneticTowardCursor", checked)}
+                className="data-[state=checked]:bg-yellow-500 scale-75"
+              />
+            </div>
+            <p className="text-xs text-gray-500 pl-6">Only moves toward cursor (prevents jiggling)</p>
+
+            {settings.v6MagneticTowardCursor && (
+              <div className="space-y-2 pl-6">
+                <div className="flex justify-between">
+                  <Label className="text-xs text-gray-400">Magnetic Strength</Label>
+                  <span className="text-xs text-yellow-400 font-medium">{settings.v6MagneticStrength.toFixed(2)}</span>
+                </div>
+                <Slider
+                  value={[settings.v6MagneticStrength]}
+                  onValueChange={([value]) => updateSetting("v6MagneticStrength", value)}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  className="[&_[role=slider]]:bg-yellow-500 [&_[role=slider]]:border-yellow-400"
+                />
+                <p className="text-xs text-gray-500">Pull toward cursor (higher = stricter)</p>
+              </div>
+            )}
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Edge Threshold</Label>
+                <span className="text-xs text-yellow-400 font-medium">{settings.v6EdgeTrailThreshold.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v6EdgeTrailThreshold]}
+                onValueChange={([value]) => updateSetting("v6EdgeTrailThreshold", value)}
+                min={0.3}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-yellow-500 [&_[role=slider]]:border-yellow-400"
+              />
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Sharp Turn Angle</Label>
+                <span className="text-xs text-yellow-400 font-medium">{settings.v6SharpTurnAngle}°</span>
+              </div>
+              <Slider
+                value={[settings.v6SharpTurnAngle]}
+                onValueChange={([value]) => updateSetting("v6SharpTurnAngle", value)}
+                min={20}
+                max={90}
+                step={5}
+                className="[&_[role=slider]]:bg-yellow-500 [&_[role=slider]]:border-yellow-400"
+              />
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700" />
+
+          {/* Path Settings */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+              <Target className="w-4 h-4 text-blue-400" />
+              Path Settings
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Search Radius</Label>
+                <span className="text-xs text-blue-400 font-medium">{settings.v6SnapRadius}px</span>
+              </div>
+              <Slider
+                value={[settings.v6SnapRadius]}
+                onValueChange={([value]) => updateSetting("v6SnapRadius", value)}
+                min={5}
+                max={50}
+                step={1}
+                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+              />
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Path Fineness</Label>
+                <span className="text-xs text-blue-400 font-medium">{settings.v6PathFineness.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v6PathFineness]}
+                onValueChange={([value]) => updateSetting("v6PathFineness", value)}
+                min={0.1}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+              />
+            </div>
+
+            <div className="space-y-2 pl-6">
+              <div className="flex justify-between">
+                <Label className="text-xs text-gray-400">Cursor Influence</Label>
+                <span className="text-xs text-blue-400 font-medium">{settings.v6CursorInfluence.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[settings.v6CursorInfluence]}
+                onValueChange={([value]) => updateSetting("v6CursorInfluence", value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[#1e1e2e] border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-xs text-gray-300 flex items-center gap-2">
+            <Brain className="w-3 h-3 text-green-400" />
+            How V6 Works
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs text-gray-500">
+          <p>• <span className="text-green-400">Click</span> to start drawing</p>
+          <p>• <span className="text-yellow-400">Golden edge-trail node</span> leads along the edge</p>
+          <p>• <span className="text-purple-400">Elastic gradient</span> trails BEHIND it</p>
+          <p className="pl-4">→ Green nodes = about to anchor (close to edge-trail)</p>
+          <p className="pl-4">→ Yellow nodes = further back (elastic)</p>
+          <p>• As edge-trail moves, nodes in its wake get anchored!</p>
+          <p>• <span className="text-cyan-400">Magnetic mode</span> prevents jiggling (only moves toward cursor)</p>
+          <p>• <span className="text-blue-400">Click</span> to manually anchor</p>
+          <p>• <span className="text-red-400">Backspace</span> to undo</p>
+          <p className="pt-2 border-t border-gray-700">Press <kbd className="px-1 py-0.5 text-xs font-semibold text-gray-300 bg-gray-700 border border-gray-600 rounded">Enter</kbd> to complete</p>
+        </CardContent>
+      </Card>
+    </>
+  );
+  
+  const GeneralSettings = () => (
+      <Card className="bg-[#1e1e2e] border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+          <Settings className="w-4 h-4 text-gray-400" />
+          General
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+          <Label className="text-sm text-gray-400 flex items-center gap-2"><Eye className="w-4 h-4"/> Live Preview</Label>
+          <Switch
+            checked={settings.showPreview}
+            onCheckedChange={(checked) => updateSetting("showPreview", checked)}
+            className="data-[state=checked]:bg-cyan-500"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  )
+
+  const renderSettings = () => {
+    switch(activeTool) {
+      case 'wand':
+        return <WandSettings />;
+      case 'brush':
+        return <BrushSettings />;
+      case 'lasso':
+        return <LassoSettings />;
+      case 'lasso-v2':
+        return <LassoV2Settings />;
+      case 'lasso-v3':
+        return <LassoV3Settings />;
+      case 'lasso-v4':
+        return <LassoV4Settings />;
+      case 'lasso-v5':
+        return <LassoV5Settings />;
+      case 'lasso-v6':
+        return <LassoV6Settings />;
+      default:
+        return <p className="text-sm text-gray-500">No settings for this tool.</p>;
+    }
+  }
+
+  return (
+    <>
+      {renderSettings()}
+      <GeneralSettings />
+    </>
+  );
+}

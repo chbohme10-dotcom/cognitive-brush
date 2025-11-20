@@ -13,7 +13,6 @@ export const Canvas = ({ onCanvasReady }: CanvasProps) => {
   const [coordinates, setCoordinates] = useState({ x: 0, y: 0 });
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
-  const [isZooming, setIsZooming] = useState(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const { fabricCanvas, addImageToCanvas } = useFabricCanvas(canvasElRef.current);
@@ -73,12 +72,12 @@ export const Canvas = ({ onCanvasReady }: CanvasProps) => {
   const handleMouseUp = (e: React.MouseEvent) => {
     if (e.button === 2) {
       setIsPanning(false);
-      setIsZooming(false);
     }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    if (isZooming || e.buttons === 2) {
+    // Only zoom if right mouse button is held
+    if (e.buttons === 2) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -5 : 5;
       setZoom(prev => Math.max(25, Math.min(400, prev + delta)));
@@ -87,7 +86,6 @@ export const Canvas = ({ onCanvasReady }: CanvasProps) => {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    setIsZooming(true);
   };
 
   return (

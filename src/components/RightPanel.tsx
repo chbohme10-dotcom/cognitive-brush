@@ -6,7 +6,8 @@ import { ColorSphere } from "./panels/ColorSphere";
 import { AIToolsPanel } from "./ai/AIToolsPanel";
 import { MicroscopePanel } from "./panels/MicroscopePanel";
 import { LayerStripPanel } from "./panels/LayerStripPanel";
-import { Layers, Settings2, Palette, Sparkles, Microscope, X, LayoutList } from "lucide-react";
+import { AssetPanel } from "./AssetBrowser/AssetPanel";
+import { Layers, Settings2, Palette, Sparkles, Microscope, X, LayoutList, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanvasLayers } from "@/hooks/useCanvasLayers";
@@ -85,6 +86,7 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
 
   const panels = [
     { id: "layers", icon: Layers, label: "Layers" },
+    { id: "assets", icon: Image, label: "Assets" },
     { id: "properties", icon: Settings2, label: "Properties" },
     { id: "color", icon: Palette, label: "Color" },
     { id: "ai", icon: Sparkles, label: "AI Tools" },
@@ -101,14 +103,14 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
       onDragLeave={handleDragLeave}
     >
       {/* Mini Layers Strip - Left Edge */}
-      {showMiniLayers && (
+        {showMiniLayers && (
         <LayerStripPanel
           layers={canvasLayers.layers.map(l => ({
             id: l.id,
             name: l.name,
             visible: l.visible,
             locked: l.locked,
-            thumbnail: undefined,
+            thumbnail: l.thumbnail,
           }))}
           activeLayerId={canvasLayers.activeLayerId || undefined}
           onLayerClick={canvasLayers.selectLayer}
@@ -132,6 +134,13 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
               onUpdateName={canvasLayers.updateLayerName}
               onUpdateOpacity={canvasLayers.updateLayerOpacity}
               onAddLayer={handleAddLayer}
+            />
+          )}
+          {activePanel === "assets" && (
+            <AssetPanel 
+              isOpen={true} 
+              onClose={() => setActivePanel("layers")} 
+              fabricCanvas={fabricCanvas} 
             />
           )}
           {activePanel === "properties" && <PropertiesPanel />}

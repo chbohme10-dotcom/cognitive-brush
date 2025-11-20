@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { AssetUploadButton } from "./AssetBrowser/AssetUploadButton";
 
-export const TopBar = ({ fabricCanvas, onToggleAssets }: { fabricCanvas: FabricCanvas | null; onToggleAssets: () => void }) => {
+export const TopBar = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -75,15 +75,6 @@ export const TopBar = ({ fabricCanvas, onToggleAssets }: { fabricCanvas: FabricC
           
           <AssetUploadButton fabricCanvas={fabricCanvas} />
           
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="gap-2 text-[hsl(var(--cde-text-secondary))] hover:text-[hsl(var(--cde-text-primary))]"
-            onClick={onToggleAssets}
-          >
-            <Image className="w-4 h-4" />
-            Assets
-          </Button>
           
           <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
           
