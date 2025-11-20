@@ -30,20 +30,10 @@ export const AssetPanel = ({ isOpen, onClose, fabricCanvas }: AssetPanelProps) =
   if (!isOpen) return null;
 
   return (
-    <aside 
-      className="w-80 flex flex-col border-r border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] transition-all duration-300"
-    >
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="border-b border-[hsl(var(--cde-border-subtle))] bg-[hsl(var(--cde-bg-secondary))] p-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-[hsl(var(--cde-text-primary))]">Assets</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          className="h-8 w-8 p-0"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </Button>
+      <div className="p-3 border-b border-[hsl(var(--cde-border-subtle))] flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-[hsl(var(--cde-text-primary))]">Assets</h3>
       </div>
 
       {/* Search */}
@@ -82,7 +72,7 @@ export const AssetPanel = ({ isOpen, onClose, fabricCanvas }: AssetPanelProps) =
 
       {/* Asset Grid */}
       <ScrollArea className="flex-1">
-        <div className="grid grid-cols-2 gap-3 p-4">
+        <div className="grid grid-cols-2 gap-2 p-3">
           {assets.map(asset => (
             <div
               key={asset.id}
@@ -118,6 +108,6 @@ export const AssetPanel = ({ isOpen, onClose, fabricCanvas }: AssetPanelProps) =
           )}
         </div>
       </ScrollArea>
-    </aside>
+    </div>
   );
 };

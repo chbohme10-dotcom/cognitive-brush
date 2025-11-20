@@ -19,12 +19,28 @@ export interface CanvasLayer {
   locked: boolean;
   opacity: number;
   blendMode: string;
+  thumbnail?: string;
   fabricObject?: FabricObject;
 }
 
 export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
   const [layers, setLayers] = useState<CanvasLayer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
+
+  // Generate thumbnail from Fabric object
+  const generateThumbnail = useCallback((fabricObject: FabricObject): string => {
+    try {
+      const dataUrl = fabricObject.toDataURL({
+        format: 'png',
+        quality: 0.5,
+        multiplier: 0.2,
+      });
+      return dataUrl;
+    } catch (error) {
+      console.error('Error generating thumbnail:', error);
+      return '';
+    }
+  }, []);
 
   // Sync Fabric.js objects with layers
   useEffect(() => {
@@ -39,6 +55,7 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
         locked: obj.selectable === false,
         opacity: (obj.opacity || 1) * 100,
         blendMode: 'Normal',
+        thumbnail: generateThumbnail(obj),
         fabricObject: obj,
       })).reverse(); // Reverse to show top layer first
 
@@ -56,7 +73,7 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
       fabricCanvas.off('object:removed', syncLayers);
       fabricCanvas.off('object:modified', syncLayers);
     };
-  }, [fabricCanvas]);
+  }, [fabricCanvas, generateThumbnail]);
 
   const addLayer = useCallback((fabricObject: FabricObject, name?: string) => {
     if (!fabricCanvas) return;
