@@ -6,8 +6,9 @@ import { ColorSphere } from "./panels/ColorSphere";
 import { AIToolsPanel } from "./ai/AIToolsPanel";
 import { MicroscopePanel } from "./panels/MicroscopePanel";
 import { LayerStripPanel } from "./panels/LayerStripPanel";
+import { PixelZoomPanel } from "./panels/PixelZoomPanel";
 import { AssetPanel } from "./AssetBrowser/AssetPanel";
-import { Layers, Settings2, Palette, Sparkles, Microscope, X, LayoutList, Image } from "lucide-react";
+import { Layers, Settings2, Palette, Sparkles, Microscope, X, LayoutList, Image, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanvasLayers } from "@/hooks/useCanvasLayers";
@@ -87,6 +88,7 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
   const panels = [
     { id: "layers", icon: Layers, label: "Layers" },
     { id: "assets", icon: Image, label: "Assets" },
+    { id: "pixelzoom", icon: ZoomIn, label: "Pixel Zoom" },
     { id: "properties", icon: Settings2, label: "Properties" },
     { id: "color", icon: Palette, label: "Color" },
     { id: "ai", icon: Sparkles, label: "AI Tools" },
@@ -134,6 +136,7 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
               onUpdateName={canvasLayers.updateLayerName}
               onUpdateOpacity={canvasLayers.updateLayerOpacity}
               onAddLayer={handleAddLayer}
+              onExportLayer={(layer) => layer.fabricObject && canvasLayers.exportLayer(layer.fabricObject, layer.name)}
             />
           )}
           {activePanel === "assets" && (
@@ -142,6 +145,14 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
               onClose={() => setActivePanel("layers")} 
               fabricCanvas={fabricCanvas} 
             />
+          )}
+          {activePanel === "pixelzoom" && (
+            <div className="h-full p-4">
+              <PixelZoomPanel 
+                mousePos={null} 
+                canvas={fabricCanvas?.getElement() || null} 
+              />
+            </div>
           )}
           {activePanel === "properties" && <PropertiesPanel />}
           {activePanel === "color" && <ColorSphere />}

@@ -91,6 +91,20 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
     toast.success('Layer added');
   }, [fabricCanvas, layers.length]);
 
+  const exportLayer = useCallback(async (fabricObject: FabricObject, name: string) => {
+    try {
+      const dataURL = fabricObject.toDataURL({ format: 'png' });
+      const link = document.createElement('a');
+      link.download = `${name}.png`;
+      link.href = dataURL;
+      link.click();
+      toast.success(`Exported ${name}`);
+    } catch (error) {
+      toast.error('Failed to export layer');
+      console.error(error);
+    }
+  }, []);
+
   const deleteLayer = useCallback((layerId: string) => {
     if (!fabricCanvas) return;
 
@@ -189,5 +203,6 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
     updateLayerName,
     updateLayerOpacity,
     reorderLayers,
+    exportLayer,
   };
 };
