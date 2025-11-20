@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Lock, Unlock, Plus, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Lock, Unlock, Plus, Trash2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ interface LayersPanelProps {
   onUpdateName: (id: string, name: string) => void;
   onUpdateOpacity: (id: string, opacity: number) => void;
   onAddLayer: () => void;
+  onExportLayer?: (layer: CanvasLayer) => void;
 }
 
 export const LayersPanel = ({
@@ -28,6 +29,7 @@ export const LayersPanel = ({
   onUpdateName,
   onUpdateOpacity,
   onAddLayer,
+  onExportLayer,
 }: LayersPanelProps) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -136,6 +138,20 @@ export const LayersPanel = ({
                 <Unlock className="w-4 h-4" />
               )}
             </Button>
+
+            {onExportLayer && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-7 h-7 opacity-60 hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExportLayer(layer);
+                }}
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+            )}
 
             <Button
               variant="ghost"

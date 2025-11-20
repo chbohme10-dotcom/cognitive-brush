@@ -13,7 +13,8 @@ import {
   Type,
   Wand2,
   Move,
-  Search
+  Search,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIGenerateDialog } from "./ai/AIGenerateDialog";
@@ -21,7 +22,8 @@ import { AIEditDialog } from "./ai/AIEditDialog";
 
 const tools = [
   { id: 'select', icon: MousePointer2, label: 'Selection' },
-  { id: 'lasso', icon: Lasso, label: 'Lasso' },
+  { id: 'magic-wand', icon: Sparkles, label: 'Magic Wand' },
+  { id: 'lasso', icon: Lasso, label: 'Magnetic Lasso' },
   { id: 'pen', icon: PenTool, label: 'Pen' },
   { id: 'brush', icon: Paintbrush, label: 'Brush' },
   { id: 'eraser', icon: Eraser, label: 'Eraser' },
