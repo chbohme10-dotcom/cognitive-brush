@@ -22,10 +22,10 @@ import { AIEditDialog } from "./ai/AIEditDialog";
 
 const tools = [
   { id: 'select', icon: MousePointer2, label: 'Selection' },
+  { id: 'brush', icon: Paintbrush, label: 'Brush' },
   { id: 'magicWand', icon: Sparkles, label: 'Magic Wand' },
   { id: 'magneticLasso', icon: Lasso, label: 'Magnetic Lasso' },
   { id: 'pen', icon: PenTool, label: 'Pen' },
-  { id: 'brush', icon: Paintbrush, label: 'Brush' },
   { id: 'eraser', icon: Eraser, label: 'Eraser' },
   { id: 'stamp', icon: Stamp, label: 'Clone Stamp' },
   { id: 'dodge', icon: Sun, label: 'Dodge/Burn' },

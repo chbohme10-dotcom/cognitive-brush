@@ -6,6 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { MagicWandTool } from "@/components/tools/MagicWandTool";
 import { MagneticLassoTool } from "@/components/tools/MagneticLassoTool";
+import { BrushTool } from "@/components/tools/BrushTool";
+import { SelectionTool } from "@/components/tools/SelectionTool";
+import { useCanvasLayers } from "@/hooks/useCanvasLayers";
 
 interface PropertiesPanelProps {
   canvas: FabricCanvas | null;
@@ -13,6 +16,9 @@ interface PropertiesPanelProps {
 }
 
 export const PropertiesPanel = ({ canvas, activeTool }: PropertiesPanelProps) => {
+  const { layers, updateLayerBlendMode, activeLayerId } = useCanvasLayers(canvas);
+  const activeLayer = layers.find(l => l.id === activeLayerId);
+
   // Show tool-specific settings
   if (activeTool === 'magicWand') {
     return <MagicWandTool canvas={canvas} />;
@@ -20,6 +26,14 @@ export const PropertiesPanel = ({ canvas, activeTool }: PropertiesPanelProps) =>
 
   if (activeTool === 'magneticLasso') {
     return <MagneticLassoTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'brush') {
+    return <BrushTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'select') {
+    return <SelectionTool canvas={canvas} isActive={true} />;
   }
 
   return (
@@ -91,15 +105,30 @@ export const PropertiesPanel = ({ canvas, activeTool }: PropertiesPanelProps) =>
           
           <div>
             <Label className="text-xs text-[hsl(var(--cde-text-secondary))] mb-2 block">Blend Mode</Label>
-            <Select defaultValue="normal">
+            <Select 
+              value={activeLayer?.blendMode || 'source-over'} 
+              onValueChange={(value) => activeLayer && updateLayerBlendMode(activeLayer.id, value as any)}
+            >
               <SelectTrigger className="h-8 bg-[hsl(var(--cde-bg-tertiary))] border-[hsl(var(--cde-border-subtle))]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="normal">Normal</SelectItem>
+                <SelectItem value="source-over">Normal</SelectItem>
                 <SelectItem value="multiply">Multiply</SelectItem>
                 <SelectItem value="screen">Screen</SelectItem>
                 <SelectItem value="overlay">Overlay</SelectItem>
+                <SelectItem value="darken">Darken</SelectItem>
+                <SelectItem value="lighten">Lighten</SelectItem>
+                <SelectItem value="color-dodge">Color Dodge</SelectItem>
+                <SelectItem value="color-burn">Color Burn</SelectItem>
+                <SelectItem value="hard-light">Hard Light</SelectItem>
+                <SelectItem value="soft-light">Soft Light</SelectItem>
+                <SelectItem value="difference">Difference</SelectItem>
+                <SelectItem value="exclusion">Exclusion</SelectItem>
+                <SelectItem value="hue">Hue</SelectItem>
+                <SelectItem value="saturation">Saturation</SelectItem>
+                <SelectItem value="color">Color</SelectItem>
+                <SelectItem value="luminosity">Luminosity</SelectItem>
               </SelectContent>
             </Select>
           </div>
