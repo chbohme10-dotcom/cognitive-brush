@@ -9,6 +9,7 @@ import { useCanvasLayers } from "@/hooks/useCanvasLayers";
 
 const Index = () => {
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
+  const [activeTool, setActiveTool] = useState('select');
   const canvasLayers = useCanvasLayers(fabricCanvas);
 
   return (
@@ -16,9 +17,9 @@ const Index = () => {
       <TopBar fabricCanvas={fabricCanvas} />
       
       <div className="flex-1 flex overflow-hidden">
-        <LeftToolbar />
+        <LeftToolbar activeTool={activeTool} onToolChange={setActiveTool} />
         <Canvas onCanvasReady={setFabricCanvas} fabricCanvas={fabricCanvas} />
-        <RightPanel canvasLayers={canvasLayers} fabricCanvas={fabricCanvas} />
+        <RightPanel canvasLayers={canvasLayers} fabricCanvas={fabricCanvas} activeTool={activeTool} />
       </div>
       
       <BottomBar />

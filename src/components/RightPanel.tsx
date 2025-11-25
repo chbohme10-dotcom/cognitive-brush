@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Canvas as FabricCanvas, Rect, FabricImage } from "fabric";
 import { LayersPanel } from "./panels/LayersPanel";
+import { LayersPanelWithGroups } from "./panels/LayersPanelWithGroups";
 import { PropertiesPanel } from "./panels/PropertiesPanel";
 import { ColorSphere } from "./panels/ColorSphere";
 import { AIToolsPanel } from "./ai/AIToolsPanel";
@@ -18,9 +19,10 @@ import { AssetMetadata } from "@/hooks/useAssets";
 interface RightPanelProps {
   canvasLayers: ReturnType<typeof useCanvasLayers>;
   fabricCanvas: FabricCanvas | null;
+  activeTool: string;
 }
 
-export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
+export const RightPanel = ({ canvasLayers, fabricCanvas, activeTool }: RightPanelProps) => {
   const [activePanel, setActivePanel] = useState<string>("layers");
   const [isOpen, setIsOpen] = useState(true);
   const [isActivatorHovered, setIsActivatorHovered] = useState(false);
@@ -125,20 +127,7 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
       {/* Main Panel Drawer */}
       {isOpen && (
         <div className="w-80 flex flex-col border-l border-[hsl(var(--cde-border-subtle))]">
-          {activePanel === "layers" && (
-            <LayersPanel
-              layers={canvasLayers.layers}
-              activeLayerId={canvasLayers.activeLayerId}
-              onLayerClick={canvasLayers.selectLayer}
-              onToggleVisibility={canvasLayers.toggleVisibility}
-              onToggleLock={canvasLayers.toggleLock}
-              onDeleteLayer={canvasLayers.deleteLayer}
-              onUpdateName={canvasLayers.updateLayerName}
-              onUpdateOpacity={canvasLayers.updateLayerOpacity}
-              onAddLayer={handleAddLayer}
-              onExportLayer={(layer) => layer.fabricObject && canvasLayers.exportLayer(layer.fabricObject, layer.name)}
-            />
-          )}
+          {activePanel === "layers" && <LayersPanelWithGroups canvasLayers={canvasLayers} />}
           {activePanel === "assets" && (
             <AssetPanel 
               isOpen={true} 
@@ -154,7 +143,7 @@ export const RightPanel = ({ canvasLayers, fabricCanvas }: RightPanelProps) => {
               />
             </div>
           )}
-          {activePanel === "properties" && <PropertiesPanel />}
+          {activePanel === "properties" && <PropertiesPanel canvas={fabricCanvas} activeTool={activeTool} />}
           {activePanel === "color" && <ColorSphere />}
           {activePanel === "ai" && <AIToolsPanel />}
           {activePanel === "microscope" && <MicroscopePanel />}
