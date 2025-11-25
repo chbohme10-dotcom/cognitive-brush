@@ -1,10 +1,27 @@
+import { Canvas as FabricCanvas } from "fabric";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { MagicWandTool } from "@/components/tools/MagicWandTool";
+import { MagneticLassoTool } from "@/components/tools/MagneticLassoTool";
 
-export const PropertiesPanel = () => {
+interface PropertiesPanelProps {
+  canvas: FabricCanvas | null;
+  activeTool?: string;
+}
+
+export const PropertiesPanel = ({ canvas, activeTool }: PropertiesPanelProps) => {
+  // Show tool-specific settings
+  if (activeTool === 'magicWand') {
+    return <MagicWandTool canvas={canvas} />;
+  }
+
+  if (activeTool === 'magneticLasso') {
+    return <MagneticLassoTool canvas={canvas} isActive={true} />;
+  }
+
   return (
     <div className="h-full overflow-auto p-4 space-y-6">
       <div className="space-y-4">

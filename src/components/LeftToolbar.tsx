@@ -22,8 +22,8 @@ import { AIEditDialog } from "./ai/AIEditDialog";
 
 const tools = [
   { id: 'select', icon: MousePointer2, label: 'Selection' },
-  { id: 'magic-wand', icon: Sparkles, label: 'Magic Wand' },
-  { id: 'lasso', icon: Lasso, label: 'Magnetic Lasso' },
+  { id: 'magicWand', icon: Sparkles, label: 'Magic Wand' },
+  { id: 'magneticLasso', icon: Lasso, label: 'Magnetic Lasso' },
   { id: 'pen', icon: PenTool, label: 'Pen' },
   { id: 'brush', icon: Paintbrush, label: 'Brush' },
   { id: 'eraser', icon: Eraser, label: 'Eraser' },
@@ -38,14 +38,13 @@ const tools = [
   { id: 'zoom', icon: Search, label: 'Zoom' },
 ];
 
-export const LeftToolbar = () => {
-  const [activeTool, setActiveTool] = useState('select');
+export const LeftToolbar = ({ activeTool, onToolChange }: { activeTool: string; onToolChange: (tool: string) => void }) => {
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   const handleToolClick = (toolId: string) => {
-    setActiveTool(toolId);
+    onToolChange(toolId);
     if (toolId === 'ai') {
       setShowGenerateDialog(true);
     }

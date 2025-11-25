@@ -21,11 +21,22 @@ export interface CanvasLayer {
   blendMode: string;
   thumbnail?: string;
   fabricObject?: FabricObject;
+  groupId?: string;
+  isGroup?: boolean;
+  children?: string[];
+}
+
+export interface LayerGroup {
+  id: string;
+  name: string;
+  expanded: boolean;
+  layerIds: string[];
 }
 
 export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
   const [layers, setLayers] = useState<CanvasLayer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
+  const [groups, setGroups] = useState<LayerGroup[]>([]);
 
   // Generate thumbnail from Fabric object
   const generateThumbnail = useCallback((fabricObject: FabricObject): string => {
@@ -192,9 +203,50 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
     }
   }, [fabricCanvas, layers]);
 
+  const createGroup = useCallback((layerIds: string[], groupName: string = 'New Group') => {
+    const groupId = `group-${Date.now()}`;
+    const newGroup: LayerGroup = {
+      id: groupId,
+      name: groupName,
+      expanded: true,
+      layerIds,
+    };
+
+    setGroups(prev => [...prev, newGroup]);
+    
+    // Update layers to reference the group
+    setLayers(prev => prev.map(layer => 
+      layerIds.includes(layer.id) ? { ...layer, groupId } : layer
+    ));
+
+    toast.success(`Group "${groupName}" created`);
+    return groupId;
+  }, []);
+
+  const ungroupLayers = useCallback((groupId: string) => {
+    setGroups(prev => prev.filter(g => g.id !== groupId));
+    setLayers(prev => prev.map(layer => 
+      layer.groupId === groupId ? { ...layer, groupId: undefined } : layer
+    ));
+    toast.success('Group removed');
+  }, []);
+
+  const toggleGroupExpanded = useCallback((groupId: string) => {
+    setGroups(prev => prev.map(g => 
+      g.id === groupId ? { ...g, expanded: !g.expanded } : g
+    ));
+  }, []);
+
+  const updateGroupName = useCallback((groupId: string, name: string) => {
+    setGroups(prev => prev.map(g => 
+      g.id === groupId ? { ...g, name } : g
+    ));
+  }, []);
+
   return {
     layers,
     activeLayerId,
+    groups,
     addLayer,
     deleteLayer,
     toggleVisibility,
@@ -204,5 +256,9 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
     updateLayerOpacity,
     reorderLayers,
     exportLayer,
+    createGroup,
+    ungroupLayers,
+    toggleGroupExpanded,
+    updateGroupName,
   };
 };
