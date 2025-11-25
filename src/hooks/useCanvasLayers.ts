@@ -18,7 +18,7 @@ export interface CanvasLayer {
   visible: boolean;
   locked: boolean;
   opacity: number;
-  blendMode: string;
+  blendMode: 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity';
   thumbnail?: string;
   fabricObject?: FabricObject;
   groupId?: string;
@@ -65,7 +65,7 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
         visible: obj.visible !== false,
         locked: obj.selectable === false,
         opacity: (obj.opacity || 1) * 100,
-        blendMode: 'Normal',
+        blendMode: (obj.globalCompositeOperation as any) || 'source-over',
         thumbnail: generateThumbnail(obj),
         fabricObject: obj,
       })).reverse(); // Reverse to show top layer first
@@ -243,6 +243,16 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
     ));
   }, []);
 
+  const updateLayerBlendMode = useCallback((layerId: string, blendMode: CanvasLayer['blendMode']) => {
+    if (!fabricCanvas) return;
+
+    const layer = layers.find(l => l.id === layerId);
+    if (layer?.fabricObject) {
+      layer.fabricObject.set({ globalCompositeOperation: blendMode as any });
+      fabricCanvas.requestRenderAll();
+    }
+  }, [fabricCanvas, layers]);
+
   return {
     layers,
     activeLayerId,
@@ -254,6 +264,7 @@ export const useCanvasLayers = (fabricCanvas: FabricCanvas | null) => {
     selectLayer,
     updateLayerName,
     updateLayerOpacity,
+    updateLayerBlendMode,
     reorderLayers,
     exportLayer,
     createGroup,
