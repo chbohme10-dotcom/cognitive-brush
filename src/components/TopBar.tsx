@@ -3,7 +3,6 @@ import { Canvas as FabricCanvas } from "fabric";
 import { Button } from "@/components/ui/button";
 import { 
   Settings, 
-  User, 
   FolderOpen, 
   Plus, 
   Ruler, 
@@ -16,10 +15,10 @@ import {
   Clock,
   Ear,
   MessageSquare,
-  AlertCircle,
-  Image
+  AlertCircle
 } from "lucide-react";
 import { AssetUploadButton } from "./AssetBrowser/AssetUploadButton";
+import { LucidNavigationMenu } from "./navigation/LucidNavigationMenu";
 
 export const TopBar = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -66,38 +65,29 @@ export const TopBar = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) 
         {isHovered && (
           <>
         {/* Left Section */}
-        <div className="flex items-center gap-4">
-          <div className="font-bold text-lg bg-clip-text text-transparent cde-gradient-primary">
-            CDE
-          </div>
+        <div className="flex items-center gap-3">
+          <LucidNavigationMenu />
           
           <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
           
           <AssetUploadButton fabricCanvas={fabricCanvas} />
           
-          
           <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
+          
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[hsl(var(--cde-bg-tertiary))] border border-[hsl(var(--cde-border-subtle))]">
+            <FolderOpen className="w-4 h-4 text-[hsl(var(--cde-text-secondary))]" />
+            <span className="text-sm font-medium text-[hsl(var(--cde-text-primary))]">Project 1.lucid</span>
+            <span className="text-xs text-[hsl(var(--cde-text-muted))]">▼</span>
+          </div>
+          
+          <Button size="icon" variant="ghost" className="w-8 h-8">
+            <Plus className="w-4 h-4" />
+          </Button>
           
           <Button variant="ghost" size="sm" className="gap-2 text-[hsl(var(--cde-text-secondary))] hover:text-[hsl(var(--cde-text-primary))]">
             <Settings className="w-4 h-4" />
-            Settings
           </Button>
-        
-        <Button variant="ghost" size="sm" className="gap-2 text-[hsl(var(--cde-text-secondary))] hover:text-[hsl(var(--cde-text-primary))]">
-          <User className="w-4 h-4" />
-          Account
-        </Button>
-        
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[hsl(var(--cde-bg-tertiary))] border border-[hsl(var(--cde-border-subtle))]">
-          <FolderOpen className="w-4 h-4 text-[hsl(var(--cde-text-secondary))]" />
-          <span className="text-sm font-medium text-[hsl(var(--cde-text-primary))]">Project 1.cde</span>
-          <span className="text-xs text-[hsl(var(--cde-text-muted))]">▼</span>
         </div>
-        
-        <Button size="icon" variant="ghost" className="w-8 h-8">
-          <Plus className="w-4 h-4" />
-        </Button>
-      </div>
       
       {/* Center Section */}
       <div className="flex items-center gap-2">
