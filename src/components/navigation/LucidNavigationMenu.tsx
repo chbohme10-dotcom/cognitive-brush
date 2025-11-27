@@ -27,7 +27,7 @@ const editorPages = [
     path: '/', 
     label: 'Image Editor', 
     icon: Image,
-    description: 'Visual canvas & AI generation',
+    description: 'ImageForge visual canvas',
     color: 'hsl(var(--cde-accent-purple))'
   },
   { 
@@ -35,7 +35,7 @@ const editorPages = [
     path: '/video', 
     label: 'Video Editor', 
     icon: Video,
-    description: 'Cinematic production suite',
+    description: 'CineAI production suite',
     color: 'hsl(var(--cde-accent-cyan))'
   },
   { 
@@ -51,7 +51,7 @@ const editorPages = [
     path: '/storyboard', 
     label: 'Storyboard', 
     icon: LayoutGrid,
-    description: 'Visual narrative planning',
+    description: 'StoryAI visual planning',
     color: 'hsl(142 71% 45%)'
   },
   { 
@@ -59,16 +59,24 @@ const editorPages = [
     path: '/character', 
     label: 'Character Editor', 
     icon: Users,
-    description: 'Character DNA & casting',
+    description: 'CastingAI character DNA',
     color: 'hsl(330 80% 60%)'
   },
   { 
     id: 'props', 
     path: '/props', 
-    label: 'Props & Scenes', 
+    label: 'Props Editor', 
     icon: Box,
-    description: 'Asset creation & management',
+    description: 'PropForge asset creation',
     color: 'hsl(200 80% 50%)'
+  },
+  { 
+    id: 'scene', 
+    path: '/scene', 
+    label: 'Scene Editor', 
+    icon: Theater,
+    description: 'SceneForge environments',
+    color: 'hsl(280 70% 55%)'
   },
 ];
 
