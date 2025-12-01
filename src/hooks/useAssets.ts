@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { gitsAssets } from './useGITSAssets';
 
 export interface AssetMetadata {
   id: string;
@@ -38,22 +39,25 @@ export const useAssets = () => {
 
       if (error) throw error;
 
-      if (data) {
-        setAssets(data.map((asset: any) => ({
-          id: asset.id,
-          name: asset.name,
-          url: asset.url,
-          category: asset.category as any,
-          complexity: asset.complexity as any,
-          imageHint: asset.image_hint || [],
-          description: asset.description,
-          contextual_previews: asset.contextual_previews,
-          created_at: asset.created_at,
-        })));
-      }
+      const dbAssets = data ? data.map((asset: any) => ({
+        id: asset.id,
+        name: asset.name,
+        url: asset.url,
+        category: asset.category as any,
+        complexity: asset.complexity as any,
+        imageHint: asset.image_hint || [],
+        description: asset.description,
+        contextual_previews: asset.contextual_previews,
+        created_at: asset.created_at,
+      })) : [];
+
+      // Merge GITS showcase assets with database assets
+      // GITS assets appear first for showcase purposes
+      setAssets([...gitsAssets, ...dbAssets]);
     } catch (error) {
       console.error('Error loading assets:', error);
-      toast.error('Failed to load assets');
+      // Even if DB fails, show GITS assets for showcase
+      setAssets(gitsAssets);
     } finally {
       setIsLoading(false);
     }
