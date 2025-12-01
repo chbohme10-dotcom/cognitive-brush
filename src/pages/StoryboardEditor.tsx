@@ -12,20 +12,26 @@ const StoryboardEditor = () => {
   const [selectedPanel, setSelectedPanel] = useState(2);
   const accentColor = "hsl(142 71% 45%)";
 
-  // Mock storyboard panels
+  // Ghost in the Shell - Tunnel Infiltration Storyboard
   const panels = [
-    { id: 1, shot: 'WIDE', duration: '3s', description: 'Establishing shot - forest clearing' },
-    { id: 2, shot: 'MED', duration: '4s', description: 'Character enters frame from left' },
-    { id: 3, shot: 'CU', duration: '2s', description: 'Close up on characters face - realization' },
-    { id: 4, shot: 'OTS', duration: '3s', description: 'Over shoulder - reveals mysterious object' },
-    { id: 5, shot: 'INSERT', duration: '2s', description: 'Detail shot of the ancient artifact' },
-    { id: 6, shot: 'WIDE', duration: '4s', description: 'Character approaches artifact cautiously' },
+    { id: 1, shot: 'WIDE', duration: '4s', description: 'Underground tunnel - military aesthetic with red alert lights' },
+    { id: 2, shot: 'MED', duration: '2s', description: 'Overhead hatch from below - dramatic rim lighting' },
+    { id: 3, shot: 'CU', duration: '1.5s', description: 'Hatch mechanism unlocking - close detail' },
+    { id: 4, shot: 'WIDE', duration: '3s', description: 'Motoko silhouette - smoke grenade drops through opening' },
+    { id: 5, shot: 'INSERT', duration: '1s', description: 'Grenade impact - initial smoke release' },
+    { id: 6, shot: 'WIDE', duration: '2s', description: 'Smoke rapidly fills tunnel - volumetric lighting' },
+    { id: 7, shot: 'DRAMATIC', duration: '3s', description: '🎬 SIGNATURE SHOT - Motoko drops through illuminated smoke in acrobatic pose' },
+    { id: 8, shot: 'CU', duration: '1.5s', description: 'Motoko\'s face through smoke - intense combat focus' },
+    { id: 9, shot: 'MED', duration: '2s', description: 'Rises from landing, draws weapon in fluid motion' },
+    { id: 10, shot: 'OTS', duration: '2s', description: 'Over shoulder - reveals guards ahead reacting' },
+    { id: 11, shot: 'WIDE', duration: '3s', description: 'Combat initiation - superhuman speed through smoke' },
+    { id: 12, shot: 'MONTAGE', duration: '4s', description: 'Quick combat cuts - precision strikes and disarms' },
   ];
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-[hsl(var(--cde-bg-primary))]">
       <EditorTopBar 
-        projectName="Untitled Storyboard" 
+        projectName="GITS - Tunnel Infiltration" 
         projectExtension=".lstory" 
         accentColor={accentColor}
       />
@@ -164,7 +170,7 @@ const StoryboardEditor = () => {
         <StoryboardRightPanel activeTool={activeTool} />
       </div>
       
-      <EditorBottomBar accentColor={accentColor} statusMessage="StoryAI Ready" />
+      <EditorBottomBar accentColor={accentColor} statusMessage="Ghost in the Shell - Tunnel Infiltration Sequence Ready" />
     </div>
   );
 };
