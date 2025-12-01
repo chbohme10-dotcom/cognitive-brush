@@ -18,7 +18,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { AssetUploadButton } from "./AssetBrowser/AssetUploadButton";
-import { LucidNavigationMenu } from "./navigation/LucidNavigationMenu";
+import { EditorIconNav } from "./navigation/EditorIconNav";
 
 export const TopBar = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -66,7 +66,13 @@ export const TopBar = ({ fabricCanvas }: { fabricCanvas: FabricCanvas | null }) 
           <>
         {/* Left Section */}
         <div className="flex items-center gap-3">
-          <LucidNavigationMenu />
+          <div className="text-lg font-bold bg-gradient-to-r from-[hsl(var(--cde-accent-primary))] to-[hsl(var(--cde-accent-secondary))] bg-clip-text text-transparent">
+            LUCID
+          </div>
+          
+          <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
+          
+          <EditorIconNav />
           
           <div className="h-6 w-px bg-[hsl(var(--cde-border-subtle))]" />
           
