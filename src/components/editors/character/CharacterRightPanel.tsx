@@ -15,15 +15,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Camera
+  Camera,
+  RotateCcw
 } from "lucide-react";
+import { CharacterRotationTool } from "@/components/ai/CharacterRotationTool";
 
 interface CharacterRightPanelProps {
   activeTool: string;
+  characterImage?: string;
+  characterName?: string;
+  onGenerateRotations?: (prompts: string[]) => void;
 }
 
 const panels = [
   { id: 'characters', icon: UserCircle, label: 'Characters' },
+  { id: 'rotation', icon: RotateCcw, label: 'Rotation' },
   { id: 'appearance', icon: Palette, label: 'Appearance' },
   { id: 'wardrobe', icon: Shirt, label: 'Wardrobe' },
   { id: 'expressions', icon: Smile, label: 'Expressions' },
@@ -42,7 +48,12 @@ const mockCharacters = [
 
 const expressions = ['😊', '😢', '😠', '😲', '🤔', '😴', '😍', '😎'];
 
-export const CharacterRightPanel = ({ activeTool }: CharacterRightPanelProps) => {
+export const CharacterRightPanel = ({ 
+  activeTool, 
+  characterImage,
+  characterName,
+  onGenerateRotations 
+}: CharacterRightPanelProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [activePanel, setActivePanel] = useState('characters');
   const [isHovered, setIsHovered] = useState(false);
@@ -146,6 +157,16 @@ export const CharacterRightPanel = ({ activeTool }: CharacterRightPanelProps) =>
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            
+            {activePanel === 'rotation' && (
+              <div className="p-3">
+                <CharacterRotationTool 
+                  characterImage={characterImage}
+                  characterName={characterName}
+                  onGenerate={onGenerateRotations}
+                />
               </div>
             )}
             
