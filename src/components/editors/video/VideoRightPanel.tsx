@@ -9,14 +9,13 @@ import {
   Film,
   Sparkles,
   Video,
-  Clock,
   MessageSquare,
   ChevronLeft,
   ChevronRight,
   Plus,
-  Play,
   Image as ImageIcon
 } from "lucide-react";
+import { VideoMediaBin } from "./VideoMediaBin";
 
 interface VideoRightPanelProps {
   activeTool: string;
@@ -30,13 +29,6 @@ const panels = [
   { id: 'ai', icon: Wand2, label: 'AI Video' },
   { id: 'assets', icon: FolderOpen, label: 'Assets' },
   { id: 'chat', icon: MessageSquare, label: 'AI Chat' },
-];
-
-const mockClips = [
-  { id: 1, name: 'Scene 01 - Opening', duration: '00:12:30', thumbnail: '🎬' },
-  { id: 2, name: 'Scene 02 - Dialog', duration: '00:45:15', thumbnail: '🎭' },
-  { id: 3, name: 'Scene 03 - Action', duration: '00:28:00', thumbnail: '💥' },
-  { id: 4, name: 'B-Roll Footage', duration: '01:05:22', thumbnail: '🎥' },
 ];
 
 export const VideoRightPanel = ({ activeTool }: VideoRightPanelProps) => {
@@ -140,32 +132,8 @@ export const VideoRightPanel = ({ activeTool }: VideoRightPanelProps) => {
             )}
             
             {activePanel === 'media' && (
-              <div className="p-3 space-y-2">
-                <Button variant="outline" size="sm" className="w-full gap-2 border-dashed">
-                  <Plus className="w-4 h-4" />
-                  Import Media
-                </Button>
-                
-                {mockClips.map((clip) => (
-                  <div 
-                    key={clip.id}
-                    className="p-3 rounded-lg bg-[hsl(var(--cde-bg-tertiary))] border border-[hsl(var(--cde-border-subtle))] group cursor-pointer hover:border-[hsl(187_85%_53%/0.5)]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-10 rounded bg-[hsl(var(--cde-bg-primary))] flex items-center justify-center text-2xl">
-                        {clip.thumbnail}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{clip.name}</p>
-                        <div className="flex items-center gap-1 text-xs text-[hsl(var(--cde-text-muted))]">
-                          <Clock className="w-3 h-3" />
-                          {clip.duration}
-                        </div>
-                      </div>
-                      <Play className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[hsl(187_85%_53%)]" />
-                    </div>
-                  </div>
-                ))}
+              <div className="p-3">
+                <VideoMediaBin onAddToTimeline={(item) => console.log('Add to timeline:', item)} />
               </div>
             )}
             

@@ -4,10 +4,22 @@ import motokoCasual from '@/assets/gits/characters/motoko-casual.png';
 import batouProfile from '@/assets/gits/characters/batou-profile.png';
 import togusaProfile from '@/assets/gits/characters/togusa-profile.png';
 import tunnelInfiltration from '@/assets/gits/scenes/tunnel-infiltration.png';
+import tunnelCloseup from '@/assets/gits/scenes/tunnel-closeup.jpeg';
 import citySkyline from '@/assets/gits/scenes/city-skyline.png';
 import labFacility from '@/assets/gits/scenes/lab-facility.jpeg';
 import labWide from '@/assets/gits/scenes/lab-wide.png';
 import cyborgSkull from '@/assets/gits/props/cyborg-skull.png';
+// New scene imports
+import tokyoCrossing from '@/assets/gits/scenes/tokyo-crossing.avif';
+import cityAerial from '@/assets/gits/scenes/city-aerial.avif';
+import kyotoTemple from '@/assets/gits/scenes/kyoto-temple.avif';
+import mountainTown from '@/assets/gits/scenes/mountain-town.avif';
+import taipeiOverview from '@/assets/gits/scenes/taipei-overview.avif';
+import stationArchitecture from '@/assets/gits/scenes/station-architecture.webp';
+import rainyStreetNight from '@/assets/gits/scenes/rainy-street-night.jpeg';
+import neonDistrict from '@/assets/gits/scenes/neon-district.jpg';
+import skyscraperVertigo from '@/assets/gits/scenes/skyscraper-vertigo.jpg';
+import japanPanorama from '@/assets/gits/scenes/japan-panorama.avif';
 
 // Pre-loaded Ghost in the Shell assets for showcase
 export const gitsAssets: AssetMetadata[] = [
@@ -156,6 +168,116 @@ export const gitsAssets: AssetMetadata[] = [
     description: 'Wide shot of laboratory facility showing full scale and scope of operations.',
     created_at: new Date().toISOString()
   },
+  {
+    id: 'gits-tunnel-closeup',
+    name: 'Tunnel Closeup',
+    url: tunnelCloseup,
+    category: 'landscape',
+    complexity: 'high',
+    imageHint: ['tunnel', 'closeup', 'underground', 'military', 'industrial'],
+    description: 'Close-up shot of tunnel interior details for reference.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-tokyo-crossing',
+    name: 'Tokyo Crossing',
+    url: tokyoCrossing,
+    category: 'landscape',
+    complexity: 'very_high',
+    imageHint: ['tokyo', 'shibuya', 'crossing', 'urban', 'crowds', 'city'],
+    description: 'Iconic Tokyo crossing - massive urban intersection for establishing city shots.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-city-aerial',
+    name: 'City Aerial View',
+    url: cityAerial,
+    category: 'landscape',
+    complexity: 'very_high',
+    imageHint: ['aerial', 'city', 'skyline', 'urban', 'overview'],
+    description: 'Aerial view of city for establishing shots and transitions.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-kyoto-temple',
+    name: 'Kyoto Temple',
+    url: kyotoTemple,
+    category: 'landscape',
+    complexity: 'high',
+    imageHint: ['kyoto', 'temple', 'traditional', 'japan', 'spiritual'],
+    description: 'Traditional Japanese temple - contrast to cyberpunk technology for philosophical scenes.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-mountain-town',
+    name: 'Mountain Town',
+    url: mountainTown,
+    category: 'landscape',
+    complexity: 'high',
+    imageHint: ['mountain', 'town', 'traditional', 'japan', 'countryside', 'batou'],
+    description: 'Traditional Japanese mountain town - Batou\'s destination when visiting distant relative.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-taipei-overview',
+    name: 'Taipei Overview',
+    url: taipeiOverview,
+    category: 'landscape',
+    complexity: 'very_high',
+    imageHint: ['taipei', 'city', 'modern', 'asia', 'urban'],
+    description: 'Modern Asian city skyline for location variety.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-station-architecture',
+    name: 'Station Architecture',
+    url: stationArchitecture,
+    category: 'landscape',
+    complexity: 'high',
+    imageHint: ['station', 'architecture', 'modern', 'infrastructure', 'urban'],
+    description: 'Modern station architecture for urban infrastructure scenes.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-rainy-street',
+    name: 'Rainy Street Night',
+    url: rainyStreetNight,
+    category: 'landscape',
+    complexity: 'very_high',
+    imageHint: ['night', 'rain', 'street', 'neon', 'noir', 'togusa', 'ambush'],
+    description: 'Rainy night street - perfect for Togusa ambush scene and noir atmosphere.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-neon-district',
+    name: 'Neon District',
+    url: neonDistrict,
+    category: 'landscape',
+    complexity: 'very_high',
+    imageHint: ['neon', 'district', 'cyberpunk', 'city', 'night', 'urban'],
+    description: 'Vibrant neon-lit district - quintessential cyberpunk atmosphere.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-skyscraper-vertigo',
+    name: 'Skyscraper Vertigo',
+    url: skyscraperVertigo,
+    category: 'landscape',
+    complexity: 'very_high',
+    imageHint: ['skyscraper', 'vertigo', 'height', 'rooftop', 'assassination'],
+    description: 'Dramatic skyscraper perspective - ideal for rooftop assassination setup scene.',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'gits-japan-panorama',
+    name: 'Japan Panorama',
+    url: japanPanorama,
+    category: 'landscape',
+    complexity: 'very_high',
+    imageHint: ['japan', 'panorama', 'landscape', 'wide', 'establishing'],
+    description: 'Wide Japan panorama for establishing shots and transitions.',
+    created_at: new Date().toISOString()
+  },
 
   // ===== PROPS =====
   {
@@ -180,10 +302,10 @@ export const gitsAssets: AssetMetadata[] = [
 
 // Categories for Asset Browser filtering
 export const gitsCategories = [
-  { id: 'character', label: 'Characters', count: 3 },
-  { id: 'landscape', label: 'Scenes', count: 4 },
+  { id: 'character', label: 'Characters', count: 4 },
+  { id: 'landscape', label: 'Scenes', count: 16 },
   { id: 'product', label: 'Props', count: 1 },
-  { id: 'all', label: 'All Assets', count: 8 }
+  { id: 'all', label: 'All Assets', count: 21 }
 ];
 
 // Asset organization metadata
