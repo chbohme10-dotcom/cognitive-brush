@@ -10,6 +10,7 @@ import StoryboardEditor from "./pages/StoryboardEditor";
 import CharacterEditor from "./pages/CharacterEditor";
 import PropsEditor from "./pages/PropsEditor";
 import SceneEditor from "./pages/SceneEditor";
+import ScriptEditor from "./pages/ScriptEditor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/character" element={<CharacterEditor />} />
           <Route path="/props" element={<PropsEditor />} />
           <Route path="/scene" element={<SceneEditor />} />
+          <Route path="/script" element={<ScriptEditor />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
