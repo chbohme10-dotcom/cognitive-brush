@@ -11,6 +11,10 @@ const Character3DEditor = () => {
   
   const accentColor = "hsl(280 70% 50%)";
 
+  const handleMorphChange = (id: string, value: number) => {
+    setMorphValues(prev => ({ ...prev, [id]: value }));
+  };
+
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-[hsl(var(--cde-bg-primary))]">
       <EditorTopBar 
@@ -23,13 +27,17 @@ const Character3DEditor = () => {
         <Character3DLeftToolbar activeTool={activeTool} onToolChange={setActiveTool} />
         
         <main className="flex-1 relative">
-          <Character3DViewport morphValues={morphValues} />
+          <Character3DViewport morphValues={morphValues} onMorphChange={handleMorphChange} />
         </main>
         
-        <Character3DRightPanel activeTool={activeTool} />
+        <Character3DRightPanel 
+          activeTool={activeTool} 
+          morphValues={morphValues}
+          onMorphChange={handleMorphChange}
+        />
       </div>
       
-      <EditorBottomBar accentColor={accentColor} statusMessage="3D Studio Ready • WebGL2 Active" />
+      <EditorBottomBar accentColor={accentColor} statusMessage="3D Character Studio • WebGL2 Active • 52 Morphs • 65 Bones" />
     </div>
   );
 };
