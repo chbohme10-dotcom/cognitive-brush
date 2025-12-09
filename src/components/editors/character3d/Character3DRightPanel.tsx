@@ -3,25 +3,27 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import {
-  Layers,
   Bone,
   Wand2,
-  FolderOpen,
   Palette,
   Download,
   Upload,
   ChevronLeft,
   ChevronRight,
-  User,
   Shirt,
   Sparkles,
   Globe,
   Package,
   ScanFace,
-  PersonStanding
+  PersonStanding,
+  FileBox
 } from "lucide-react";
 import { FaceMorphPanel } from "./FaceMorphPanel";
 import { SkeletonRigPanel } from "./SkeletonRigPanel";
+import { AICharacterGenerator } from "./AICharacterGenerator";
+import { VRMLoaderPanel } from "./VRMLoaderPanel";
+import { useVRMLoader } from "@/hooks/useVRMLoader";
+import { useMixamoAnimation } from "@/hooks/useMixamoAnimation";
 
 interface Character3DRightPanelProps {
   activeTool: string;
@@ -33,10 +35,11 @@ const panels = [
   { id: 'face', icon: ScanFace, label: 'Face Morphs' },
   { id: 'body', icon: PersonStanding, label: 'Body Morphs' },
   { id: 'bones', icon: Bone, label: 'Skeleton Rig' },
+  { id: 'vrm', icon: FileBox, label: 'VRM Loader' },
   { id: 'materials', icon: Palette, label: 'Materials' },
   { id: 'clothing', icon: Shirt, label: 'Clothing' },
   { id: 'library', icon: Package, label: 'Model Library' },
-  { id: 'ai', icon: Wand2, label: 'AI Tools' },
+  { id: 'ai', icon: Wand2, label: 'AI Generator' },
   { id: 'export', icon: Download, label: 'Export' },
 ];
 
@@ -96,6 +99,19 @@ export const Character3DRightPanel = ({ activeTool, morphValues, onMorphChange }
   const [activePanel, setActivePanel] = useState('face');
   const [isHovered, setIsHovered] = useState(false);
   const [selectedBone, setSelectedBone] = useState<string | null>(null);
+  
+  // VRM Loader
+  const { isLoading: vrmLoading, loadedVRM, loadVRM, applyExpression, resetExpressions, clearVRM } = useVRMLoader();
+  
+  // Mixamo Animation
+  const mixamo = useMixamoAnimation(loadedVRM?.scene);
+
+  // Handle AI-generated morphs
+  const handleAIMorphsGenerated = (morphs: Record<string, number>) => {
+    Object.entries(morphs).forEach(([id, value]) => {
+      onMorphChange(id, value);
+    });
+  };
 
   return (
     <div 
@@ -168,7 +184,32 @@ export const Character3DRightPanel = ({ activeTool, morphValues, onMorphChange }
 
             {activePanel === 'bones' && (
               <div className="h-full p-3">
-                <SkeletonRigPanel selectedBone={selectedBone} onBoneSelect={setSelectedBone} />
+                <SkeletonRigPanel 
+                  selectedBone={selectedBone} 
+                  onBoneSelect={setSelectedBone}
+                  animations={mixamo.animations.map(a => ({ name: a.name, duration: a.duration }))}
+                  onLoadAnimation={mixamo.loadAnimation}
+                  onPlayAnimation={mixamo.playAnimation}
+                  onRemoveAnimation={mixamo.removeAnimation}
+                  isPlaying={mixamo.isPlaying}
+                  onTogglePlayback={mixamo.togglePlayback}
+                  currentTime={mixamo.currentTime}
+                  duration={mixamo.duration}
+                  onSeek={mixamo.seekTo}
+                />
+              </div>
+            )}
+
+            {activePanel === 'vrm' && (
+              <div className="h-full p-3">
+                <VRMLoaderPanel
+                  isLoading={vrmLoading}
+                  loadedVRM={loadedVRM}
+                  onLoadVRM={loadVRM}
+                  onApplyExpression={applyExpression}
+                  onResetExpressions={resetExpressions}
+                  onClearVRM={clearVRM}
+                />
               </div>
             )}
 
@@ -311,43 +352,9 @@ export const Character3DRightPanel = ({ activeTool, morphValues, onMorphChange }
             )}
 
             {activePanel === 'ai' && (
-              <ScrollArea className="h-full p-3">
-                <div className="space-y-3">
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-[hsl(280_70%_50%)]/20 to-[hsl(280_70%_30%)]/20 border border-[hsl(280_70%_50%)]/30">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="w-4 h-4 text-[hsl(280_70%_60%)]" />
-                      <span className="text-sm font-medium text-[hsl(280_70%_60%)]">AI Character Generator</span>
-                    </div>
-                    <p className="text-xs text-[hsl(var(--cde-text-muted))] mb-3">
-                      Generate character morphs from text description or image reference
-                    </p>
-                    <textarea 
-                      placeholder="Describe your character... e.g., 'Athletic female, early 30s, East Asian features, high cheekbones, almond eyes'"
-                      className="w-full h-24 p-2 rounded-lg bg-[hsl(var(--cde-bg-primary))] border border-[hsl(var(--cde-border-subtle))] text-xs resize-none focus:border-[hsl(280_70%_50%)] focus:outline-none"
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <Button className="flex-1 bg-[hsl(280_70%_50%)] hover:bg-[hsl(280_70%_40%)]" size="sm">
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Generate
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Upload className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-[hsl(var(--cde-bg-tertiary))] border border-[hsl(var(--cde-border-subtle))]">
-                    <h4 className="text-xs font-medium text-[hsl(var(--cde-text-secondary))] mb-2">Quick Presets</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['Hero', 'Villain', 'Elder', 'Youth', 'Athletic', 'Average'].map((preset) => (
-                        <Button key={preset} variant="ghost" size="sm" className="text-xs justify-start">
-                          {preset}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </ScrollArea>
+              <div className="h-full p-3">
+                <AICharacterGenerator onMorphsGenerated={handleAIMorphsGenerated} />
+              </div>
             )}
           </div>
         </div>
