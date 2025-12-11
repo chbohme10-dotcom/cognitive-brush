@@ -16,12 +16,14 @@ import {
   Package,
   ScanFace,
   PersonStanding,
-  FileBox
+  FileBox,
+  Hand
 } from "lucide-react";
 import { FaceMorphPanel } from "./FaceMorphPanel";
 import { SkeletonRigPanel } from "./SkeletonRigPanel";
 import { AICharacterGenerator } from "./AICharacterGenerator";
 import { VRMLoaderPanel } from "./VRMLoaderPanel";
+import { FingerPosePanel } from "./FingerPosePanel";
 import { useVRMLoader, LoadedVRM } from "@/hooks/useVRMLoader";
 import { useMixamoAnimation } from "@/hooks/useMixamoAnimation";
 
@@ -38,6 +40,7 @@ const panels = [
   { id: 'face', icon: ScanFace, label: 'Face Morphs' },
   { id: 'body', icon: PersonStanding, label: 'Body Morphs' },
   { id: 'bones', icon: Bone, label: 'Skeleton Rig' },
+  { id: 'fingers', icon: Hand, label: 'Hand Posing' },
   { id: 'vrm', icon: FileBox, label: 'VRM Loader' },
   { id: 'materials', icon: Palette, label: 'Materials' },
   { id: 'clothing', icon: Shirt, label: 'Clothing' },
@@ -201,6 +204,12 @@ export const Character3DRightPanel = ({ activeTool, morphValues, onMorphChange, 
                   duration={mixamo.duration}
                   onSeek={mixamo.seekTo}
                 />
+              </div>
+            )}
+
+            {activePanel === 'fingers' && (
+              <div className="h-full p-3">
+                <FingerPosePanel />
               </div>
             )}
 

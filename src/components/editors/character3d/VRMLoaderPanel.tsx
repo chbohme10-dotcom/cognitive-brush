@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Upload, 
   FileBox, 
@@ -12,9 +13,11 @@ import {
   Eye,
   Loader2,
   X,
-  RefreshCw
+  RefreshCw,
+  Bookmark
 } from "lucide-react";
 import { LoadedVRM } from "@/hooks/useVRMLoader";
+import { ExpressionPresets } from "./ExpressionPresets";
 
 interface VRMLoaderPanelProps {
   isLoading: boolean;
@@ -41,6 +44,7 @@ export const VRMLoaderPanel = ({
   onClearVRM
 }: VRMLoaderPanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [expressionValues, setExpressionValues] = useState<Record<string, number>>({});
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -48,6 +52,20 @@ export const VRMLoaderPanel = ({
       onLoadVRM(file);
     }
     e.target.value = '';
+  };
+
+  const handleExpressionChange = (name: string, value: number) => {
+    setExpressionValues(prev => ({ ...prev, [name]: value }));
+    onApplyExpression(name, value);
+  };
+
+  const handleLoadPreset = (values: Record<string, number>) => {
+    onResetExpressions();
+    setExpressionValues({});
+    
+    Object.entries(values).forEach(([name, value]) => {
+      handleExpressionChange(name, value);
+    });
   };
 
   return (
@@ -116,48 +134,74 @@ export const VRMLoaderPanel = ({
               </div>
             </div>
 
-            {/* Expression Controls */}
+            {/* Expression Controls with Tabs */}
             {loadedVRM.blendShapes.length > 0 && (
               <div className="p-3 rounded-lg bg-[hsl(var(--cde-bg-tertiary))] border border-[hsl(var(--cde-border-subtle))]">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-medium text-[hsl(var(--cde-text-secondary))]">
-                    Expressions
-                  </h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={onResetExpressions}
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Reset
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {loadedVRM.blendShapes.slice(0, 10).map((name) => (
-                    <div key={name} className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          {expressionIcons[name.toLowerCase()] || <Meh className="w-3 h-3" />}
-                          <span className="text-xs text-[hsl(var(--cde-text-muted))] capitalize">
-                            {name}
-                          </span>
-                        </div>
-                      </div>
-                      <Slider
-                        defaultValue={[0]}
-                        max={1}
-                        step={0.01}
-                        onValueChange={([v]) => onApplyExpression(name, v)}
-                      />
+                <Tabs defaultValue="sliders" className="w-full">
+                  <TabsList className="w-full h-8 mb-3">
+                    <TabsTrigger value="sliders" className="flex-1 text-xs h-7">
+                      <Smile className="w-3 h-3 mr-1" /> Expressions
+                    </TabsTrigger>
+                    <TabsTrigger value="presets" className="flex-1 text-xs h-7">
+                      <Bookmark className="w-3 h-3 mr-1" /> Presets
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="sliders" className="mt-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-medium text-[hsl(var(--cde-text-secondary))]">
+                        Active Expressions
+                      </h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => {
+                          onResetExpressions();
+                          setExpressionValues({});
+                        }}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Reset
+                      </Button>
                     </div>
-                  ))}
-                </div>
-                {loadedVRM.blendShapes.length > 10 && (
-                  <p className="text-[10px] text-[hsl(var(--cde-text-muted))] mt-2">
-                    +{loadedVRM.blendShapes.length - 10} more expressions available
-                  </p>
-                )}
+                    <div className="space-y-3">
+                      {loadedVRM.blendShapes.slice(0, 12).map((name) => (
+                        <div key={name} className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              {expressionIcons[name.toLowerCase()] || <Meh className="w-3 h-3" />}
+                              <span className="text-xs text-[hsl(var(--cde-text-muted))] capitalize">
+                                {name}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-[hsl(var(--cde-text-secondary))] tabular-nums">
+                              {Math.round((expressionValues[name] || 0) * 100)}%
+                            </span>
+                          </div>
+                          <Slider
+                            value={[expressionValues[name] || 0]}
+                            max={1}
+                            step={0.01}
+                            onValueChange={([v]) => handleExpressionChange(name, v)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {loadedVRM.blendShapes.length > 12 && (
+                      <p className="text-[10px] text-[hsl(var(--cde-text-muted))] mt-2">
+                        +{loadedVRM.blendShapes.length - 12} more expressions available
+                      </p>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="presets" className="mt-0">
+                    <ExpressionPresets
+                      currentValues={expressionValues}
+                      onLoadPreset={handleLoadPreset}
+                    />
+                  </TabsContent>
+                </Tabs>
               </div>
             )}
 
