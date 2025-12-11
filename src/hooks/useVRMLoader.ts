@@ -52,8 +52,6 @@ export function useVRMLoader() {
                 });
               }
             }
-              });
-            }
 
             // Extract bone names
             const bones: string[] = [];
