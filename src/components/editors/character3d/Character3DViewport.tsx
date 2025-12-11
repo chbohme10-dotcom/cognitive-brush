@@ -1,4 +1,4 @@
-import { useRef, useState, Suspense } from 'react';
+import { useRef, useState, Suspense, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { 
   OrbitControls, 
@@ -18,44 +18,110 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VRMCharacterModel } from './VRMCharacterModel';
-
-// Enhanced bone visualization with proper skeleton
-function SkeletonOverlay({ visible }: { visible: boolean }) {
+import { LoadedVRM } from '@/hooks/useVRMLoader';
+// Dynamic VRM skeleton overlay
+function VRMSkeletonOverlay({ vrm, visible }: { vrm: LoadedVRM | null; visible: boolean }) {
+  const boneData = useMemo(() => {
+    if (!vrm?.vrm.humanoid) return { positions: [], connections: [] };
+    
+    const positions: { pos: THREE.Vector3; name: string }[] = [];
+    const connections: number[] = [];
+    const humanBones = vrm.vrm.humanoid.humanBones;
+    
+    // Extract bone world positions
+    Object.entries(humanBones).forEach(([name, bone]) => {
+      if (bone?.node) {
+        const worldPos = new THREE.Vector3();
+        bone.node.getWorldPosition(worldPos);
+        positions.push({ pos: worldPos, name });
+      }
+    });
+    
+    // Build connection lines between parent-child bones
+    const boneHierarchy: Record<string, string> = {
+      'spine': 'hips', 'chest': 'spine', 'upperChest': 'chest', 'neck': 'upperChest', 'head': 'neck',
+      'leftShoulder': 'upperChest', 'leftUpperArm': 'leftShoulder', 'leftLowerArm': 'leftUpperArm', 'leftHand': 'leftLowerArm',
+      'rightShoulder': 'upperChest', 'rightUpperArm': 'rightShoulder', 'rightLowerArm': 'rightUpperArm', 'rightHand': 'rightLowerArm',
+      'leftUpperLeg': 'hips', 'leftLowerLeg': 'leftUpperLeg', 'leftFoot': 'leftLowerLeg', 'leftToes': 'leftFoot',
+      'rightUpperLeg': 'hips', 'rightLowerLeg': 'rightUpperLeg', 'rightFoot': 'rightLowerLeg', 'rightToes': 'rightFoot',
+    };
+    
+    Object.entries(boneHierarchy).forEach(([child, parent]) => {
+      const childBone = positions.find(b => b.name === child);
+      const parentBone = positions.find(b => b.name === parent);
+      if (childBone && parentBone) {
+        connections.push(
+          parentBone.pos.x, parentBone.pos.y, parentBone.pos.z,
+          childBone.pos.x, childBone.pos.y, childBone.pos.z
+        );
+      }
+    });
+    
+    return { positions, connections };
+  }, [vrm]);
+  
   if (!visible) return null;
   
-  const bonePositions = [
-    // Spine
-    { pos: [0, 0, 0] as const, name: 'Root' },
-    { pos: [0, 0.15, 0] as const, name: 'Hips' },
-    { pos: [0, 0.3, 0] as const, name: 'Spine' },
-    { pos: [0, 0.45, 0] as const, name: 'Spine1' },
-    { pos: [0, 0.6, 0] as const, name: 'Spine2' },
-    { pos: [0, 0.72, 0] as const, name: 'Neck' },
-    { pos: [0, 0.82, 0] as const, name: 'Head' },
-    // Left arm
-    { pos: [-0.12, 0.65, 0] as const, name: 'L.Shoulder' },
-    { pos: [-0.22, 0.6, 0] as const, name: 'L.UpperArm' },
-    { pos: [-0.32, 0.45, 0] as const, name: 'L.LowerArm' },
-    { pos: [-0.38, 0.32, 0] as const, name: 'L.Hand' },
-    // Right arm
-    { pos: [0.12, 0.65, 0] as const, name: 'R.Shoulder' },
-    { pos: [0.22, 0.6, 0] as const, name: 'R.UpperArm' },
-    { pos: [0.32, 0.45, 0] as const, name: 'R.LowerArm' },
-    { pos: [0.38, 0.32, 0] as const, name: 'R.Hand' },
-    // Left leg
-    { pos: [-0.08, 0.1, 0] as const, name: 'L.UpperLeg' },
-    { pos: [-0.09, -0.12, 0] as const, name: 'L.LowerLeg' },
-    { pos: [-0.09, -0.32, 0] as const, name: 'L.Foot' },
-    // Right leg
-    { pos: [0.08, 0.1, 0] as const, name: 'R.UpperLeg' },
-    { pos: [0.09, -0.12, 0] as const, name: 'R.LowerLeg' },
-    { pos: [0.09, -0.32, 0] as const, name: 'R.Foot' },
+  // If VRM is loaded, show its actual skeleton
+  if (vrm && boneData.positions.length > 0) {
+    return (
+      <group>
+        {boneData.positions.map((bone, i) => (
+          <group key={i} position={bone.pos}>
+            <mesh>
+              <octahedronGeometry args={[0.012, 0]} />
+              <meshBasicMaterial color="#00ff88" wireframe />
+            </mesh>
+            <mesh>
+              <sphereGeometry args={[0.006, 8, 8]} />
+              <meshBasicMaterial color="#00ffaa" />
+            </mesh>
+          </group>
+        ))}
+        {boneData.connections.length > 0 && (
+          <lineSegments>
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                count={boneData.connections.length / 3}
+                array={new Float32Array(boneData.connections)}
+                itemSize={3}
+              />
+            </bufferGeometry>
+            <lineBasicMaterial color="#00ff88" linewidth={2} />
+          </lineSegments>
+        )}
+      </group>
+    );
+  }
+  
+  // Fallback: show default humanoid skeleton preview
+  const defaultBones = [
+    { pos: [0, 0.15, 0], name: 'Hips' }, { pos: [0, 0.3, 0], name: 'Spine' },
+    { pos: [0, 0.45, 0], name: 'Chest' }, { pos: [0, 0.6, 0], name: 'UpperChest' },
+    { pos: [0, 0.72, 0], name: 'Neck' }, { pos: [0, 0.82, 0], name: 'Head' },
+    { pos: [-0.12, 0.65, 0], name: 'L.Shoulder' }, { pos: [-0.25, 0.55, 0], name: 'L.UpperArm' },
+    { pos: [-0.35, 0.40, 0], name: 'L.LowerArm' }, { pos: [-0.42, 0.28, 0], name: 'L.Hand' },
+    { pos: [0.12, 0.65, 0], name: 'R.Shoulder' }, { pos: [0.25, 0.55, 0], name: 'R.UpperArm' },
+    { pos: [0.35, 0.40, 0], name: 'R.LowerArm' }, { pos: [0.42, 0.28, 0], name: 'R.Hand' },
+    { pos: [-0.08, 0.1, 0], name: 'L.UpperLeg' }, { pos: [-0.09, -0.15, 0], name: 'L.LowerLeg' },
+    { pos: [-0.09, -0.38, 0], name: 'L.Foot' }, { pos: [0.08, 0.1, 0], name: 'R.UpperLeg' },
+    { pos: [0.09, -0.15, 0], name: 'R.LowerLeg' }, { pos: [0.09, -0.38, 0], name: 'R.Foot' },
   ];
-
+  
+  const defaultConnections = new Float32Array([
+    0,0.15,0, 0,0.3,0, 0,0.3,0, 0,0.45,0, 0,0.45,0, 0,0.6,0, 0,0.6,0, 0,0.72,0, 0,0.72,0, 0,0.82,0,
+    0,0.6,0, -0.12,0.65,0, -0.12,0.65,0, -0.25,0.55,0, -0.25,0.55,0, -0.35,0.40,0, -0.35,0.40,0, -0.42,0.28,0,
+    0,0.6,0, 0.12,0.65,0, 0.12,0.65,0, 0.25,0.55,0, 0.25,0.55,0, 0.35,0.40,0, 0.35,0.40,0, 0.42,0.28,0,
+    0,0.15,0, -0.08,0.1,0, -0.08,0.1,0, -0.09,-0.15,0, -0.09,-0.15,0, -0.09,-0.38,0,
+    0,0.15,0, 0.08,0.1,0, 0.08,0.1,0, 0.09,-0.15,0, 0.09,-0.15,0, 0.09,-0.38,0,
+    -0.08,0.1,0, 0.08,0.1,0,
+  ]);
+  
   return (
     <group position={[0, 0.75, 0]}>
-      {bonePositions.map((bone, i) => (
-        <group key={i} position={bone.pos}>
+      {defaultBones.map((bone, i) => (
+        <group key={i} position={bone.pos as [number, number, number]}>
           <mesh>
             <octahedronGeometry args={[0.015, 0]} />
             <meshBasicMaterial color="#ff6b6b" wireframe />
@@ -66,43 +132,9 @@ function SkeletonOverlay({ visible }: { visible: boolean }) {
           </mesh>
         </group>
       ))}
-      
-      {/* Bone connections */}
       <lineSegments>
         <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={40}
-            array={new Float32Array([
-              // Spine
-              0, 0.15, 0, 0, 0.3, 0,
-              0, 0.3, 0, 0, 0.45, 0,
-              0, 0.45, 0, 0, 0.6, 0,
-              0, 0.6, 0, 0, 0.72, 0,
-              0, 0.72, 0, 0, 0.82, 0,
-              // Left arm
-              0, 0.6, 0, -0.12, 0.65, 0,
-              -0.12, 0.65, 0, -0.22, 0.6, 0,
-              -0.22, 0.6, 0, -0.32, 0.45, 0,
-              -0.32, 0.45, 0, -0.38, 0.32, 0,
-              // Right arm
-              0, 0.6, 0, 0.12, 0.65, 0,
-              0.12, 0.65, 0, 0.22, 0.6, 0,
-              0.22, 0.6, 0, 0.32, 0.45, 0,
-              0.32, 0.45, 0, 0.38, 0.32, 0,
-              // Left leg
-              0, 0.15, 0, -0.08, 0.1, 0,
-              -0.08, 0.1, 0, -0.09, -0.12, 0,
-              -0.09, -0.12, 0, -0.09, -0.32, 0,
-              // Right leg
-              0, 0.15, 0, 0.08, 0.1, 0,
-              0.08, 0.1, 0, 0.09, -0.12, 0,
-              0.09, -0.12, 0, 0.09, -0.32, 0,
-              // Hips connection
-              -0.08, 0.1, 0, 0.08, 0.1, 0,
-            ])}
-            itemSize={3}
-          />
+          <bufferAttribute attach="attributes-position" count={defaultConnections.length / 3} array={defaultConnections} itemSize={3} />
         </bufferGeometry>
         <lineBasicMaterial color="#ff6b6b" linewidth={2} />
       </lineSegments>
@@ -114,12 +146,14 @@ function Scene({
   showBones, 
   showGrid, 
   morphValues,
-  viewMode
+  viewMode,
+  loadedVRM
 }: { 
   showBones: boolean; 
   showGrid: boolean;
   morphValues: Record<string, number>;
   viewMode: 'full' | 'face' | 'body';
+  loadedVRM: LoadedVRM | null;
 }) {
   const cameraPositions = {
     full: { position: [1.5, 1.2, 1.5] as [number, number, number], target: [0, 0.9, 0] as [number, number, number] },
@@ -150,13 +184,17 @@ function Scene({
       {/* Environment */}
       <Environment preset="studio" />
       
-      {/* Character */}
-      <Center position={[0, 0, 0]}>
-        <VRMCharacterModel morphValues={morphValues} />
-      </Center>
+      {/* Character - show loaded VRM or default model */}
+      {loadedVRM ? (
+        <primitive object={loadedVRM.scene} />
+      ) : (
+        <Center position={[0, 0, 0]}>
+          <VRMCharacterModel morphValues={morphValues} />
+        </Center>
+      )}
       
       {/* Skeleton overlay */}
-      <SkeletonOverlay visible={showBones} />
+      <VRMSkeletonOverlay vrm={loadedVRM} visible={showBones} />
       
       {/* Ground Grid */}
       {showGrid && (
@@ -188,13 +226,18 @@ function Scene({
 interface Character3DViewportProps {
   morphValues: Record<string, number>;
   onMorphChange?: (id: string, value: number) => void;
+  loadedVRM?: LoadedVRM | null;
 }
 
-export const Character3DViewport = ({ morphValues, onMorphChange }: Character3DViewportProps) => {
+export const Character3DViewport = ({ morphValues, onMorphChange, loadedVRM = null }: Character3DViewportProps) => {
   const [showBones, setShowBones] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [viewMode, setViewMode] = useState<'full' | 'face' | 'body'>('full');
   const [isAutoRotate, setIsAutoRotate] = useState(false);
+  
+  // Display bone/morph counts from loaded VRM or defaults
+  const boneCount = loadedVRM?.bones.length || 65;
+  const morphCount = loadedVRM?.blendShapes.length || 52;
 
   return (
     <div className="relative w-full h-full bg-gradient-to-b from-[hsl(240_20%_14%)] to-[hsl(240_20%_8%)]">
@@ -306,6 +349,7 @@ export const Character3DViewport = ({ morphValues, onMorphChange }: Character3DV
             showGrid={showGrid} 
             morphValues={morphValues}
             viewMode={viewMode}
+            loadedVRM={loadedVRM}
           />
         </Suspense>
       </Canvas>
@@ -320,11 +364,16 @@ export const Character3DViewport = ({ morphValues, onMorphChange }: Character3DV
           <span className="text-xs text-[hsl(var(--cde-text-muted))]">Vertices: <span className="text-[hsl(280_70%_60%)]">12,847</span></span>
         </div>
         <div className="px-3 py-1.5 rounded-lg bg-[hsl(var(--cde-bg-tertiary))]/80 backdrop-blur-sm">
-          <span className="text-xs text-[hsl(var(--cde-text-muted))]">Bones: <span className="text-[hsl(280_70%_60%)]">65</span></span>
+          <span className="text-xs text-[hsl(var(--cde-text-muted))]">Bones: <span className="text-[hsl(280_70%_60%)]">{boneCount}</span></span>
         </div>
         <div className="px-3 py-1.5 rounded-lg bg-[hsl(var(--cde-bg-tertiary))]/80 backdrop-blur-sm">
-          <span className="text-xs text-[hsl(var(--cde-text-muted))]">Morphs: <span className="text-[hsl(280_70%_60%)]">52</span></span>
+          <span className="text-xs text-[hsl(var(--cde-text-muted))]">Morphs: <span className="text-[hsl(280_70%_60%)]">{morphCount}</span></span>
         </div>
+        {loadedVRM && (
+          <div className="px-3 py-1.5 rounded-lg bg-[hsl(150_70%_40%)]/20 border border-[hsl(150_70%_40%)]/40">
+            <span className="text-xs font-medium text-[hsl(150_70%_50%)]">VRM Loaded</span>
+          </div>
+        )}
       </div>
 
       {/* Current View Indicator */}
