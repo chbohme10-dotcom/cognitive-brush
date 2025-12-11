@@ -22,13 +22,16 @@ import { FaceMorphPanel } from "./FaceMorphPanel";
 import { SkeletonRigPanel } from "./SkeletonRigPanel";
 import { AICharacterGenerator } from "./AICharacterGenerator";
 import { VRMLoaderPanel } from "./VRMLoaderPanel";
-import { useVRMLoader } from "@/hooks/useVRMLoader";
+import { useVRMLoader, LoadedVRM } from "@/hooks/useVRMLoader";
 import { useMixamoAnimation } from "@/hooks/useMixamoAnimation";
+
+type VRMLoaderReturn = ReturnType<typeof useVRMLoader>;
 
 interface Character3DRightPanelProps {
   activeTool: string;
   morphValues: Record<string, number>;
   onMorphChange: (id: string, value: number) => void;
+  vrmLoader?: VRMLoaderReturn;
 }
 
 const panels = [
@@ -94,14 +97,15 @@ const modelLibrary = [
   { id: 'daz-genesis', name: 'DAZ Genesis 8', source: 'DAZ3D', type: 'FBX', quality: 'Ultra' },
 ];
 
-export const Character3DRightPanel = ({ activeTool, morphValues, onMorphChange }: Character3DRightPanelProps) => {
+export const Character3DRightPanel = ({ activeTool, morphValues, onMorphChange, vrmLoader }: Character3DRightPanelProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [activePanel, setActivePanel] = useState('face');
   const [isHovered, setIsHovered] = useState(false);
   const [selectedBone, setSelectedBone] = useState<string | null>(null);
   
-  // VRM Loader
-  const { isLoading: vrmLoading, loadedVRM, loadVRM, applyExpression, resetExpressions, clearVRM } = useVRMLoader();
+  // Use passed vrmLoader or create fallback (for backward compatibility)
+  const internalVrmLoader = useVRMLoader();
+  const { isLoading: vrmLoading, loadedVRM, loadVRM, applyExpression, resetExpressions, clearVRM } = vrmLoader || internalVrmLoader;
   
   // Mixamo Animation
   const mixamo = useMixamoAnimation(loadedVRM?.scene);
