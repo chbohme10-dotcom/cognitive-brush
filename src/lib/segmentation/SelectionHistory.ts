@@ -20,7 +20,7 @@ export interface SavedSelection {
   width: number;
   height: number;
   pixelCount: number;
-  contour?: ContourResult;
+  contour?: ContourData;
   thumbnail?: string;
   metadata: {
     algorithm: string;
@@ -62,7 +62,7 @@ export class SelectionHistory {
     width: number,
     height: number,
     name?: string,
-    contour?: ContourResult
+    contour?: ContourData
   ): SavedSelection {
     const id = this.generateId();
     const timestamp = Date.now();
