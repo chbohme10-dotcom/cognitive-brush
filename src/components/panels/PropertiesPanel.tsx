@@ -4,11 +4,22 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MagicWandTool } from "@/components/tools/MagicWandTool";
 import { MagneticLassoTool } from "@/components/tools/MagneticLassoTool";
 import { BrushTool } from "@/components/tools/BrushTool";
 import { SelectionTool } from "@/components/tools/SelectionTool";
+import { EraserTool } from "@/components/tools/EraserTool";
+import { CloneStampTool } from "@/components/tools/CloneStampTool";
+import { DodgeBurnTool } from "@/components/tools/DodgeBurnTool";
+import { BlurSharpenTool } from "@/components/tools/BlurSharpenTool";
+import { FillTool } from "@/components/tools/FillTool";
+import { ShapeTool } from "@/components/tools/ShapeTool";
+import { TextTool } from "@/components/tools/TextTool";
+import { ZoomPanTool } from "@/components/tools/ZoomPanTool";
+import { SelectionHistoryPanel } from "@/components/tools/SelectionHistoryPanel";
 import { useCanvasLayers } from "@/hooks/useCanvasLayers";
+import { History } from "lucide-react";
 
 interface PropertiesPanelProps {
   canvas: FabricCanvas | null;
@@ -19,9 +30,22 @@ export const PropertiesPanel = ({ canvas, activeTool }: PropertiesPanelProps) =>
   const { layers, updateLayerBlendMode, activeLayerId } = useCanvasLayers(canvas);
   const activeLayer = layers.find(l => l.id === activeLayerId);
 
-  // Show tool-specific settings
+  // Tool-specific panels
   if (activeTool === 'magicWand') {
-    return <MagicWandTool canvas={canvas} />;
+    return (
+      <Tabs defaultValue="tool" className="h-full flex flex-col">
+        <TabsList className="grid w-full grid-cols-2 mx-4 mt-4">
+          <TabsTrigger value="tool">Magic Wand</TabsTrigger>
+          <TabsTrigger value="history"><History className="w-4 h-4 mr-1" />History</TabsTrigger>
+        </TabsList>
+        <TabsContent value="tool" className="flex-1 overflow-auto">
+          <MagicWandTool canvas={canvas} />
+        </TabsContent>
+        <TabsContent value="history" className="flex-1 overflow-auto p-2">
+          <SelectionHistoryPanel />
+        </TabsContent>
+      </Tabs>
+    );
   }
 
   if (activeTool === 'magneticLasso') {
@@ -34,6 +58,42 @@ export const PropertiesPanel = ({ canvas, activeTool }: PropertiesPanelProps) =>
 
   if (activeTool === 'select') {
     return <SelectionTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'eraser') {
+    return <EraserTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'stamp') {
+    return <CloneStampTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'dodge') {
+    return <DodgeBurnTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'blur') {
+    return <BlurSharpenTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'fill') {
+    return <FillTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'shape') {
+    return <ShapeTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'text') {
+    return <TextTool canvas={canvas} isActive={true} />;
+  }
+
+  if (activeTool === 'zoom') {
+    return <ZoomPanTool canvas={canvas} isActive={true} mode="zoom" />;
+  }
+
+  if (activeTool === 'move') {
+    return <ZoomPanTool canvas={canvas} isActive={true} mode="move" />;
   }
 
   return (
