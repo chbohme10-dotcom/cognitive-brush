@@ -14,6 +14,7 @@ import ScriptEditor from "./pages/ScriptEditor";
 import Character3DEditor from "./pages/Character3DEditor";
 import NotFound from "./pages/NotFound";
 
+// Initialize React Query client
 const queryClient = new QueryClient();
 
 const App = () => (
